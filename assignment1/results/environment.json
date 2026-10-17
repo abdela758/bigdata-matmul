@@ -1,0 +1,50 @@
+{
+  "collected_utc": "2026-10-17T11:33:35+00:00",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "machine": "AMD64",
+  "cpu": {
+    "Name": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+    "NumberOfCores": 4,
+    "NumberOfLogicalProcessors": 8,
+    "MaxClockSpeed": 2419,
+    "L2CacheSize": 5120,
+    "L3CacheSize": 8192
+  },
+  "memory_gb": 15.7,
+  "computer_model": "HP 250 G8 Notebook PC",
+  "os": {
+    "Caption": "Microsoft Windows 11 Pro",
+    "Version": "10.0.26200",
+    "BuildNumber": "26200"
+  },
+  "battery_status_2_means_AC": {
+    "BatteryStatus": 2,
+    "EstimatedChargeRemaining": 99
+  },
+  "power_plan": {
+    "guid": "381b4222-f694-41f0-9685-ff5bb260df2e",
+    "name": "Equilibrado"
+  },
+  "python_kernel": {
+    "executable": "C:\\Users\\TecdataEngineering\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    "version": "Python 3.12.0",
+    "implementation_flags": "default interpreter flags (no -O, no JIT)"
+  },
+  "driver_python": {
+    "executable": "C:\\Users\\TecdataEngineering\\anaconda3\\python.exe",
+    "version": "3.13.9"
+  },
+  "build": {
+    "c_compiler": "C:\\Users\\TecdataEngineering\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\gcc.exe",
+    "c_compiler_version": "gcc.exe (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r2) 16.2.0",
+    "c_flags": "-std=c11 -Wall -Wextra -O2",
+    "javac": "C:\\Users\\TecdataEngineering\\.jdks\\openjdk-25.0.2\\bin\\javac.exe",
+    "java": "C:\\Users\\TecdataEngineering\\.jdks\\openjdk-25.0.2\\bin\\java.exe",
+    "java_version": "openjdk version \"25.0.2\" 2026-01-20"
+  },
+  "java_flags": [
+    "-Xmx4g"
+  ],
+  "java_note": "default tiered JIT (C1+C2) and default G1 GC apart from the flags above",
+  "git_commit": "not committed yet"
+}
