@@ -133,9 +133,10 @@ Three <i>n</i> × <i>n</i> double matrices need 24<i>n</i>² bytes (216 MB at <i
 def disclosure():
     return """
 <h2>8. Use of generative AI</h2>
-<p>In line with the course policy, the use of AI is disclosed here. <b>Tool:</b> Claude Code (Anthropic). <b>Purpose and affected parts:</b> planning the experimental design; writing the benchmark programs, the driver, the test, analysis and build scripts;
-debugging the toolchain set-up on Windows; drafting this report; checking that cited web sources exist. <b>What the AI did not do:</b> no number in this report was produced or estimated by the AI; every result comes from running the published code on the author’s machine.
-The author is responsible for understanding the code, for the measurements and for the conclusions.</p>
+<p>In line with the course policy, the use of AI is disclosed here. <b>Tool:</b> Claude Code (Anthropic), used interactively from the author’s editor. <b>What the AI did:</b> planned the experimental design;
+wrote the benchmark programs, the driver, and the test, analysis and build scripts; debugged the toolchain set-up on Windows; drafted this report; checked that cited web sources exist.
+<b>What the author did:</b> supplied the assignment brief and course material; set the scope of the study, including asking to drop extra experiments and to simplify the analysis and the correctness tolerance;
+had the code run on their own laptop; created the GitHub repository and published the materials; chose the file names. The author is responsible for understanding the code, the measurements and the conclusions.</p>
 """
 
 
