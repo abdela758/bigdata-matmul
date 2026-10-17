@@ -3,7 +3,7 @@
 Big Data 2026–2027, Grado en Ciencia e Ingeniería de Datos (ULPGC).
 Question: *how does the matrix size n affect runtime and memory of the textbook triple-loop multiplication of dense n × n `double`
 matrices in Python, Java and C, under one fixed, documented set of conditions on one machine?*
-The report is `report/Assignment01_Choukri_Report.pdf`. This README says how to rebuild and re-run everything.
+The report is `report/Assignment01_Choukri_Mohamed_Report.pdf`. This README says how to rebuild and re-run everything.
 
 ## Layout
 
@@ -17,7 +17,7 @@ scripts/collect_environment.py  hardware / software record -> results/environmen
 scripts/run_benchmarks.py       benchmark driver -> results/raw_samples.csv, results/launches.csv
 scripts/analyze.py              tables (results/tables) and figures (results/figures)
 scripts/build_report.py         HTML + PDF report (headless Edge) from the tables and figures
-scripts/package_materials.py    dist/Assignment01_Choukri_Materials.zip
+scripts/package_materials.py    dist/Assignment01_Choukri_Mohamed_Materials.zip
 ```
 
 ## Versions used for the reported results
@@ -45,8 +45,8 @@ $py           = 'C:\Users\<you>\anaconda3\python.exe'                           
 & $py scripts\collect_environment.py --python $kernelPython    # 4. environment record
 & $py scripts\run_benchmarks.py --python $kernelPython         # 5. benchmarks, about 75 min (--resume continues an interrupted run)
 & $py scripts\analyze.py                                       # 6. tables and figures
-& $py scripts\build_report.py --repo-url <url>                 # 7. report\Assignment01_Choukri_Report.pdf
-& $py scripts\package_materials.py                             # 8. dist\Assignment01_Choukri_Materials.zip
+& $py scripts\build_report.py --repo-url <url>                 # 7. report\Assignment01_Choukri_Mohamed_Report.pdf
+& $py scripts\package_materials.py                             # 8. dist\Assignment01_Choukri_Mohamed_Materials.zip
 ```
 
 On Linux/macOS use `scripts/build.sh` for step 1 (not run on this machine) and the same Python commands.

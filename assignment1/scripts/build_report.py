@@ -27,7 +27,7 @@ TABLES = RESULTS / "tables"
 LANGS = ["python", "java", "c"]
 LABEL = {"python": "Python", "java": "Java", "c": "C"}
 AUTHOR = "Abdelaziz Choukri Mohamed"
-PDF_NAME = "Assignment01_Choukri_Report.pdf"
+PDF_NAME = "Assignment01_Choukri_Mohamed_Report.pdf"
 
 
 def T(name):
@@ -159,11 +159,12 @@ def print_pdf(html_path, pdf_path):
     if not edge:
         print("No Edge/Chrome found: open report/report.html and print it to PDF manually.")
         return False
+    pdf_path.unlink(missing_ok=True)  # so that an old PDF can never be mistaken for a fresh one
     with tempfile.TemporaryDirectory() as profile:
         cmd = [edge, "--headless=new", "--disable-gpu", "--no-sandbox", f"--user-data-dir={profile}",
                "--no-pdf-header-footer", f"--print-to-pdf={pdf_path}", html_path.as_uri()]
         subprocess.run(cmd, capture_output=True, timeout=180)
-    return pdf_path.exists()
+    return pdf_path.exists() and pdf_path.stat().st_size > 10_000
 
 
 def main():

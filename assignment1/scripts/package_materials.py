@@ -1,4 +1,4 @@
-"""Create dist/Assignment01_Choukri_Materials.zip: source, scripts, configuration, raw results, tables, figures, report.
+"""Create dist/Assignment01_Choukri_Mohamed_Materials.zip: source, scripts, configuration, raw results, tables, figures, report.
 
 Large generated inputs (inputs/*.bin) and build output are not included; inputs/checksums.json lets anyone regenerate and
 verify them. Run after analyze.py and build_report.py.
@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist"
-NAME = "Assignment01_Choukri_Materials"
+NAME = "Assignment01_Choukri_Mohamed_Materials"
 INCLUDE = ["README.md", "src", "scripts", "config", "jmh", "results", "report", "inputs/checksums.json", "../requirements.txt"]
 SKIP_PARTS = {"__pycache__", "target", "build"}
 SKIP_SUFFIX = {".pyc", ".bin"}
