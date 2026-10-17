@@ -48,8 +48,8 @@ different machine behaviour, and the way each language lays matrices out in memo
 <p><b>Research question.</b> <i>How does the matrix size <i>n</i> affect the runtime and the memory use of the textbook triple-loop
 multiplication of dense <code>double</code> matrices implemented in Python, Java and C, under one fixed and documented set of conditions on one machine?</i>
 The factor that is changed is <i>n</i> (and, as a second factor, the language); the outcomes are the time of one multiplication and the peak memory of the process.</p>
-<p><b>Predictions</b> (formed from the algorithmic model and the course material before the final measurements; a small pilot was used only
-to choose sizes and limits, not to tune the code):</p>
+<p><b>Predictions.</b> They were written down from the algorithmic model and the course material before the final measurements were analysed, but after a small pilot run
+(used to choose sizes and limits) had already shown that large sizes cost more per operation, so they are informed predictions, not blind ones:</p>
 <ol>
 <li><b>P1 – cubic growth.</b> While the working set stays in cache, the time of one multiplication grows like <i>n</i>³ in every language, so the
 log-log slope is about 3 and the time per inner iteration, <i>t</i>/<i>n</i>³, is roughly constant. Small sizes may sit above that line because of fixed overheads.</li>
@@ -149,7 +149,7 @@ operation order and no fused multiply-add (GCC’s default for <code>-std=c11</c
 It includes the language runtime, the loaded input data, the result and all temporary data, so it is <b>not</b> the same quantity as managed-heap use or as 24<i>n</i>² bytes of array storage, and the figures must not be compared as if it were. The runtime baseline is estimated from the smallest size (<i>n</i> = 10, three matrices of 800 bytes).
 Limits of the metric: working set counts resident pages only, the JVM reserves and touches memory in its own way, and a single peak per launch gives no information about when it occurred. CPU utilisation was not measured because it is not needed for the conclusions.</p>
 <h3>3.7 Sizes, budgets and fixed settings</h3>
-<p>The size sequence is roughly geometric (10, 20, 50, 100, 200, 300, 500, 700, 1000, 1500, 2000, 2500, 3000 where feasible) and avoids powers of two, whose large strides map matrix columns onto few cache sets and would confound the trend with an associativity effect. It spans the three regimes of P3 (B inside L2, inside L3, larger than L3).
+<p>The size sequence is roughly geometric (10, 20, 50, 100, 200, 300, 500, 700, 1000, 1500, 2000, 2500, 3000 where feasible) and avoids powers of two, whose large strides can map matrix columns onto few cache sets (a cache-associativity effect that I did not test) and could confound the trend. It spans the three regimes of P3 (B inside L2, inside L3, larger than L3).
 Budgets were declared before the final run: <b>at most {lim['seconds_per_multiplication']} s per single multiplication</b> (a launch that prints nothing for {lim['seconds_per_multiplication']} s is killed and recorded as a timeout), <b>at most {lim['seconds_per_launch'] // 60} min per launch</b> and <b>{lim['peak_memory_bytes'] / 2**30:g} GiB of memory</b> (also the JVM heap cap).
 The largest size that met the limits is reported separately from the largest size attempted (Section 4.4); timeouts are reported as results at their limit and never given an invented time.
 <b>Fixed in the main comparison:</b> machine and power state, input files, loop order, numeric type, accumulator style, single-threaded kernels, timing boundary, batch rule, limits and, per language, the compiler/runtime settings in Table 1.

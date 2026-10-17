@@ -80,7 +80,7 @@ java -Xmx4g -cp build\java MatMul bench 500 inputs\A_500.bin inputs\B_500.bin 3 
 ## Raw data
 
 `results/raw_samples.csv`: `launch_id, experiment, sweep, language, variant, n, phase, index, inner, seconds_per_multiplication, checksum`.
-`results/launches.csv`: one row per process (`status`, `peak_working_set_bytes`, `background_cpu_percent`, command, …). `variant` is always `main`/empty.
+`results/launches.csv`: one row per process (`status`, `peak_working_set_bytes`, `background_cpu_percent`, command, …). `variant` is always `main`/empty. Constant for every row, so not stored as columns: numeric type float64 (binary64) and one kernel thread (the JVM also runs its own JIT/GC threads).
 
 ## AI assistance
 
