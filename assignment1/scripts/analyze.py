@@ -8,7 +8,7 @@ linear interpolation, NumPy's default). Every measured batch of every
 successful launch is pooled; warm-up and calibration batches are excluded from
 the statistics but kept in the raw file and shown in the warm-up figure.
 
-Needs pandas, numpy, scipy, matplotlib (see requirements.txt).
+Needs pandas, numpy, matplotlib (see requirements.txt).
 """
 import json
 import sys
@@ -20,7 +20,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-from scipy import stats  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS = ROOT / "results"
@@ -96,42 +95,8 @@ def memory_summary(launches_ok, baseline_n=10):
     base = mem[mem.n == baseline_n].set_index(["language", "variant"]).peak_ws_median_mib
     mem["baseline_mib"] = [base.get((r.language, r.variant), np.nan) for r in mem.itertuples()]
     mem["net_mib"] = mem.peak_ws_median_mib - mem.baseline_mib
-    mem["net_bytes_per_element"] = mem.net_mib * 2**20 / (3 * mem.n**2)  # 3 matrices of n*n elements
     mem["net_over_array_storage"] = mem.net_mib / mem.array_storage_mib
     return mem
-
-
-def fit_exponent(df, lo, hi):
-    d = df[(df.n >= lo) & (df.n <= hi)]
-    if len(d) < 3:
-        return None
-    x, y = np.log(d.n.to_numpy(float)), np.log(d.median_s.to_numpy(float))
-    res = stats.linregress(x, y)
-    t = stats.t.ppf(0.975, len(d) - 2)
-    return {"points": len(d), "exponent": res.slope, "ci95_low": res.slope - t * res.stderr,
-            "ci95_high": res.slope + t * res.stderr, "r_squared": res.rvalue**2}
-
-
-def fits_table(ts):
-    windows = [("n=100-1000", 100, 1000)]  # the sizes completed by all three languages (6 points each)
-    rows = []
-    for lang in LANGS:
-        d = ts[ts.language == lang]
-        for name, lo, hi in windows:
-            f = fit_exponent(d, lo, hi)
-            if f:
-                rows.append({"language": lang, "window": name, **f})
-    return pd.DataFrame(rows)
-
-
-def local_exponents(ts):
-    rows = []
-    for lang in LANGS:
-        d = ts[ts.language == lang].sort_values("n")
-        for a, b in zip(d.itertuples(), d.iloc[1:].itertuples()):
-            rows.append({"language": lang, "n_from": a.n, "n_to": b.n,
-                         "local_exponent": np.log(b.median_s / a.median_s) / np.log(b.n / a.n)})
-    return pd.DataFrame(rows)
 
 
 def ratios_table(ts):
@@ -318,8 +283,6 @@ def main():
     write(ts, "time_summary")
     mem = memory_summary(launches[launches.status == "ok"])
     write(mem, "memory_summary")
-    write(fits_table(ts), "fits")
-    write(local_exponents(ts), "local_exponents")
     rt = ratios_table(ts)
     write(rt, "ratios")
     lim, fails = limits_table(main_launches, samples, limit_s)
@@ -327,8 +290,6 @@ def main():
     write(fails, "failed_launches")
     write(warmup_table(samples, launches), "warmup")
     write(checksum_table(samples, launches), "checksums")
-    write(launches.groupby(["language", "n"]).background_cpu_percent.apply(pd.to_numeric, errors="coerce")
-          .groupby(["language", "n"]).median().reset_index(), "background_cpu")
 
     fig_runtime(ts, fails, limit_s)
     fig_normalised(ts)

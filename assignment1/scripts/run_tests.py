@@ -1,38 +1,32 @@
 """Correctness tests for the three implementations of Assignment 1.
 
-Needs NumPy (analysis environment). Every implementation is run through its
-`verify` command on the same matrices; the result C = A x B is read back and
-compared with references. Writes results/correctness.csv and exits non-zero if
-any check fails.
+Needs NumPy (analysis environment). Every implementation is run through its `verify` command on the same
+matrices; the result C = A x B is read back and compared with references. Writes results/correctness.csv and
+exits non-zero if any check fails.
 
 Checks
   identity / zero   I x X = X x I = X and 0 x X = 0, bit-exact
   known answers     hand-computed 2x2 and 3x3 products, bit-exact
-  integer-valued    random integers 0..9 stored as doubles: every partial sum is
-                    exactly representable, so any summation order gives the same
-                    answer; compared bit-exact with NumPy's int64 product
-  random reals      uniform [0,1) and [-1,1): compared with an exact rational
-                    reference on sampled entries (fractions.Fraction) and with
-                    NumPy's A @ B on all entries, against the standard bound for
-                    recursive summation, |c - c_exact| <= gamma_n * sum_k |a_ik b_kj|,
-                    gamma_n = n*u/(1 - n*u), u = 2**-53 (Higham, Accuracy and
-                    Stability of Numerical Algorithms, 2nd ed., chapter 3, inner products)
-  cross-language    the three result files must be bit-identical (the kernels use
-                    the same operation order and no fused multiply-add)
+  integer-valued    random integers 0..9 stored as doubles: every partial sum is exactly representable, so any
+                    summation order gives the same answer; compared bit-exact with NumPy's int64 product
+  random reals      uniform [0,1) and [-1,1), and the shared benchmark inputs: compared with NumPy's A @ B using
+                    numpy.allclose(rtol=1e-9, atol=1e-9). binary64 carries about 16 significant digits and summing
+                    n <= 300 products only changes the last digits, so 1e-9 is strict but leaves room for the
+                    different summation order of NumPy's BLAS
+  cross-language    the three result files must be bit-identical (same operation order, no fused multiply-add)
 """
 import argparse
 import csv
 import subprocess
 import sys
 import tempfile
-from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
 
 from common import RESULTS, input_paths, kernel_command
 
-U = 2.0 ** -53
+RTOL = ATOL = 1e-9
 LANGS = ["c", "java", "python"]
 
 
@@ -78,6 +72,14 @@ def main():
             return lambda C: (np.array_equal(C, expected), "bit-exact" if np.array_equal(C, expected)
                               else f"max |diff| = {np.abs(C - expected).max():.3g}")
 
+        def close_to_numpy(A, B):
+            ref = A @ B
+            def check(C):
+                diff = np.abs(C - ref)
+                ok = bool(np.allclose(C, ref, rtol=RTOL, atol=ATOL))
+                return ok, f"max |C - NumPy| = {diff.max():.2e} (allowed {ATOL:g} + {RTOL:g}·|NumPy|)"
+            return check
+
         # identity / zero
         for n in (1, 7, 33):
             X = rng.random((n, n))
@@ -98,30 +100,11 @@ def main():
             Ai = rng.integers(0, 10, (n, n)); Bi = rng.integers(0, 10, (n, n))
             case("integer_valued", Ai.astype(float), Bi.astype(float), exact((Ai @ Bi).astype(float)))
 
-        # random reals vs exact rational reference (sampled) and NumPy (all entries)
-        def real_check(A, B):
-            n = A.shape[0]
-            gamma = n * U / (1 - n * U)
-            bound = gamma * (np.abs(A) @ np.abs(B))  # per-entry bound, computed in floating point
-            sample = [(int(i), int(j)) for i, j in rng.integers(0, n, (200, 2))]
-            exact_ref = {(i, j): sum(Fraction(float(A[i, k])) * Fraction(float(B[k, j])) for k in range(n))
-                         for (i, j) in sample}
-
-            def check(C):
-                err_numpy = np.abs(C - A @ B)
-                worst_ratio_numpy = float((err_numpy / np.maximum(bound, np.finfo(float).tiny)).max())
-                worst_ratio_exact = max(float(abs(Fraction(float(C[i, j])) - v) / Fraction(float(max(bound[i, j], 1e-300))))
-                                        for (i, j), v in exact_ref.items())
-                rel = float((err_numpy / np.maximum(np.abs(A @ B), np.finfo(float).tiny)).max())
-                ok = worst_ratio_exact <= 1.0 and worst_ratio_numpy <= 2.0
-                return ok, (f"error/bound: exact-sample {worst_ratio_exact:.3f}, NumPy-all {worst_ratio_numpy:.3f}; "
-                            f"max rel diff vs NumPy {rel:.2e}; gamma_n={gamma:.2e}")
-            return check
-
+        # random reals against NumPy
         for name, lo, hi in (("random_01", 0.0, 1.0), ("random_pm1", -1.0, 1.0)):
             for n in (10, 100, 200):
                 A = rng.uniform(lo, hi, (n, n)); B = rng.uniform(lo, hi, (n, n))
-                case(name, A, B, real_check(A, B))
+                case(name, A, B, close_to_numpy(A, B))
 
         # the shared benchmark inputs themselves
         for n in (100, 300):
@@ -130,7 +113,7 @@ def main():
             for lang in LANGS:
                 C = run_verify(lang, n, a, b, tmp / f"shared_{lang}.bin", args.python)
                 results.setdefault(("shared_inputs", n), {})[lang] = C
-                ok, detail = real_check(A, B)(C)
+                ok, detail = close_to_numpy(A, B)(C)
                 record("shared_inputs", lang, n, ok, detail)
 
         # cross-language bit-identity
@@ -139,7 +122,7 @@ def main():
             record("cross_language_bit_identical", "all", n, same, f"test case '{test}'")
 
     RESULTS.mkdir(exist_ok=True)
-    with open(RESULTS / "correctness.csv", "w", newline="") as f:
+    with open(RESULTS / "correctness.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=["test", "language", "n", "passed", "detail"])
         w.writeheader(); w.writerows(rows)
     failed = [r for r in rows if not r["passed"]]

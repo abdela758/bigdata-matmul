@@ -38,30 +38,30 @@ integer_valued,python,50,1,bit-exact
 integer_valued,c,100,1,bit-exact
 integer_valued,java,100,1,bit-exact
 integer_valued,python,100,1,bit-exact
-random_01,c,10,1,"error/bound: exact-sample 0.306, NumPy-all 0.324; max rel diff vs NumPy 3.60e-16; gamma_n=1.11e-15"
-random_01,java,10,1,"error/bound: exact-sample 0.306, NumPy-all 0.324; max rel diff vs NumPy 3.60e-16; gamma_n=1.11e-15"
-random_01,python,10,1,"error/bound: exact-sample 0.306, NumPy-all 0.324; max rel diff vs NumPy 3.60e-16; gamma_n=1.11e-15"
-random_01,c,100,1,"error/bound: exact-sample 0.084, NumPy-all 0.044; max rel diff vs NumPy 4.88e-16; gamma_n=1.11e-14"
-random_01,java,100,1,"error/bound: exact-sample 0.084, NumPy-all 0.044; max rel diff vs NumPy 4.88e-16; gamma_n=1.11e-14"
-random_01,python,100,1,"error/bound: exact-sample 0.084, NumPy-all 0.044; max rel diff vs NumPy 4.88e-16; gamma_n=1.11e-14"
-random_01,c,200,1,"error/bound: exact-sample 0.045, NumPy-all 0.027; max rel diff vs NumPy 5.88e-16; gamma_n=2.22e-14"
-random_01,java,200,1,"error/bound: exact-sample 0.045, NumPy-all 0.027; max rel diff vs NumPy 5.88e-16; gamma_n=2.22e-14"
-random_01,python,200,1,"error/bound: exact-sample 0.045, NumPy-all 0.027; max rel diff vs NumPy 5.88e-16; gamma_n=2.22e-14"
-random_pm1,c,10,1,"error/bound: exact-sample 0.183, NumPy-all 0.291; max rel diff vs NumPy 4.37e-15; gamma_n=1.11e-15"
-random_pm1,java,10,1,"error/bound: exact-sample 0.183, NumPy-all 0.291; max rel diff vs NumPy 4.37e-15; gamma_n=1.11e-15"
-random_pm1,python,10,1,"error/bound: exact-sample 0.183, NumPy-all 0.291; max rel diff vs NumPy 4.37e-15; gamma_n=1.11e-15"
-random_pm1,c,100,1,"error/bound: exact-sample 0.017, NumPy-all 0.015; max rel diff vs NumPy 8.01e-13; gamma_n=1.11e-14"
-random_pm1,java,100,1,"error/bound: exact-sample 0.017, NumPy-all 0.015; max rel diff vs NumPy 8.01e-13; gamma_n=1.11e-14"
-random_pm1,python,100,1,"error/bound: exact-sample 0.017, NumPy-all 0.015; max rel diff vs NumPy 8.01e-13; gamma_n=1.11e-14"
-random_pm1,c,200,1,"error/bound: exact-sample 0.010, NumPy-all 0.007; max rel diff vs NumPy 5.49e-12; gamma_n=2.22e-14"
-random_pm1,java,200,1,"error/bound: exact-sample 0.010, NumPy-all 0.007; max rel diff vs NumPy 5.49e-12; gamma_n=2.22e-14"
-random_pm1,python,200,1,"error/bound: exact-sample 0.010, NumPy-all 0.007; max rel diff vs NumPy 5.49e-12; gamma_n=2.22e-14"
-shared_inputs,c,100,1,"error/bound: exact-sample 0.068, NumPy-all 0.043; max rel diff vs NumPy 4.77e-16; gamma_n=1.11e-14"
-shared_inputs,java,100,1,"error/bound: exact-sample 0.068, NumPy-all 0.043; max rel diff vs NumPy 4.77e-16; gamma_n=1.11e-14"
-shared_inputs,python,100,1,"error/bound: exact-sample 0.086, NumPy-all 0.043; max rel diff vs NumPy 4.77e-16; gamma_n=1.11e-14"
-shared_inputs,c,300,1,"error/bound: exact-sample 0.044, NumPy-all 0.018; max rel diff vs NumPy 6.06e-16; gamma_n=3.33e-14"
-shared_inputs,java,300,1,"error/bound: exact-sample 0.039, NumPy-all 0.018; max rel diff vs NumPy 6.06e-16; gamma_n=3.33e-14"
-shared_inputs,python,300,1,"error/bound: exact-sample 0.047, NumPy-all 0.018; max rel diff vs NumPy 6.06e-16; gamma_n=3.33e-14"
+random_01,c,10,1,max |C - NumPy| = 8.88e-16 (allowed 1e-09 + 1e-09·|NumPy|)
+random_01,java,10,1,max |C - NumPy| = 8.88e-16 (allowed 1e-09 + 1e-09·|NumPy|)
+random_01,python,10,1,max |C - NumPy| = 8.88e-16 (allowed 1e-09 + 1e-09·|NumPy|)
+random_01,c,100,1,max |C - NumPy| = 1.07e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+random_01,java,100,1,max |C - NumPy| = 1.07e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+random_01,python,100,1,max |C - NumPy| = 1.07e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+random_01,c,200,1,max |C - NumPy| = 3.55e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+random_01,java,200,1,max |C - NumPy| = 3.55e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+random_01,python,200,1,max |C - NumPy| = 3.55e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+random_pm1,c,10,1,max |C - NumPy| = 4.87e-16 (allowed 1e-09 + 1e-09·|NumPy|)
+random_pm1,java,10,1,max |C - NumPy| = 4.87e-16 (allowed 1e-09 + 1e-09·|NumPy|)
+random_pm1,python,10,1,max |C - NumPy| = 4.87e-16 (allowed 1e-09 + 1e-09·|NumPy|)
+random_pm1,c,100,1,max |C - NumPy| = 4.44e-15 (allowed 1e-09 + 1e-09·|NumPy|)
+random_pm1,java,100,1,max |C - NumPy| = 4.44e-15 (allowed 1e-09 + 1e-09·|NumPy|)
+random_pm1,python,100,1,max |C - NumPy| = 4.44e-15 (allowed 1e-09 + 1e-09·|NumPy|)
+random_pm1,c,200,1,max |C - NumPy| = 1.07e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+random_pm1,java,200,1,max |C - NumPy| = 1.07e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+random_pm1,python,200,1,max |C - NumPy| = 1.07e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+shared_inputs,c,100,1,max |C - NumPy| = 1.07e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+shared_inputs,java,100,1,max |C - NumPy| = 1.07e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+shared_inputs,python,100,1,max |C - NumPy| = 1.07e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+shared_inputs,c,300,1,max |C - NumPy| = 4.26e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+shared_inputs,java,300,1,max |C - NumPy| = 4.26e-14 (allowed 1e-09 + 1e-09·|NumPy|)
+shared_inputs,python,300,1,max |C - NumPy| = 4.26e-14 (allowed 1e-09 + 1e-09·|NumPy|)
 cross_language_bit_identical,all,1,1,test case 'identity_left'
 cross_language_bit_identical,all,7,1,test case 'identity_left'
 cross_language_bit_identical,all,33,1,test case 'identity_left'

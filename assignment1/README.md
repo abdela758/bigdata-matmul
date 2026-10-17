@@ -28,7 +28,7 @@ scripts/package_materials.py    dist/Assignment01_Choukri_Materials.zip
 | CPython (python.org build) | 3.12.0 – runs the Python kernel, standard library only |
 | OpenJDK | 25.0.2 – runs the Java kernel with `-Xmx4g`, other JVM options default |
 | GCC (WinLibs, MinGW-W64 UCRT) | 16.2.0 – `-std=c11 -Wall -Wextra -O2` (`winget install BrechtSanders.WinLibs.POSIX.UCRT`) |
-| Anaconda Python | 3.13.9 – driver, tests, analysis: numpy 2.3.5, pandas 2.3.3, scipy 1.16.3, matplotlib 3.10.6 (`../requirements.txt`) |
+| Anaconda Python | 3.13.9 – driver, tests, analysis: numpy 2.3.5, pandas 2.3.3, matplotlib 3.10.6 (`../requirements.txt`) |
 
 The driver and the three programs need only the standard library, a JDK (17+) and a C compiler.
 

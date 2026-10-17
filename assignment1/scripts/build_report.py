@@ -18,7 +18,7 @@ import pandas as pd
 
 import report_static as S
 import report_text as TXT
-from report_lib import esc, figure, fmt_num, fmt_time, fmt_time_iqr, page, table
+from report_lib import esc, figure, fmt_time, fmt_time_iqr, page, table
 
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS = ROOT / "results"
@@ -30,13 +30,8 @@ AUTHOR = "Abdelaziz Choukri Mohamed"
 PDF_NAME = "Assignment01_Choukri_Report.pdf"
 
 
-def T(name, required=True):
-    p = TABLES / f"{name}.csv"
-    if not p.exists():
-        if required:
-            raise FileNotFoundError(p)
-        return None
-    return pd.read_csv(p, keep_default_na=False, na_values=[""])
+def T(name):
+    return pd.read_csv(TABLES / f"{name}.csv", keep_default_na=False, na_values=[""])
 
 
 def read_json(path):
@@ -45,15 +40,15 @@ def read_json(path):
 
 # ---------------------------------------------------------------- tables
 def correctness_table():
-    c = pd.read_csv(RESULTS / "correctness.csv", keep_default_na=False)
+    c = pd.read_csv(RESULTS / "correctness.csv", keep_default_na=False, encoding="utf-8")
     desc = {
         "identity_left": ("I × X = X", "bit-exact"), "identity_right": ("X × I = X", "bit-exact"),
         "zero": ("0 × X = 0", "bit-exact"), "known_2x2": ("hand-computed 2 × 2 product", "bit-exact"),
         "known_3x3": ("hand-computed 3 × 3 product", "bit-exact"),
         "integer_valued": ("random integers 0..9 vs NumPy int64 product", "bit-exact"),
-        "random_01": ("random reals in [0, 1)", "error ≤ γₙ Σ|aᵢₖbₖⱼ|"),
-        "random_pm1": ("random reals in [−1, 1)", "error ≤ γₙ Σ|aᵢₖbₖⱼ|"),
-        "shared_inputs": ("the shared benchmark inputs", "error ≤ γₙ Σ|aᵢₖbₖⱼ|"),
+        "random_01": ("random reals in [0, 1) vs NumPy", "|C − NumPy| ≤ 1e-9 + 1e-9·|NumPy|"),
+        "random_pm1": ("random reals in [−1, 1) vs NumPy", "|C − NumPy| ≤ 1e-9 + 1e-9·|NumPy|"),
+        "shared_inputs": ("the shared benchmark inputs vs NumPy", "|C − NumPy| ≤ 1e-9 + 1e-9·|NumPy|"),
         "cross_language_bit_identical": ("C, Java and Python results identical", "bit-identical"),
     }
     rows = []
@@ -61,19 +56,14 @@ def correctness_table():
         d = c[c.test == test]
         if d.empty:
             continue
-        ratios = []
-        for s in d.detail:
-            m = re.search(r"exact-sample ([0-9.]+), NumPy-all ([0-9.]+)", s)
-            if m:
-                ratios.append((float(m.group(1)), float(m.group(2))))
-        worst = (f"{max(r[0] for r in ratios):.3f} / {max(r[1] for r in ratios):.3f}" if ratios else "–")
+        diffs = [float(m.group(1)) for s in d.detail if (m := re.search(r"max \|C - NumPy\| = ([0-9.e+-]+)", s))]
         ns = ", ".join(str(n) for n in sorted(d.n.astype(str).unique(), key=lambda x: int(x)))
-        rows.append([what, ns, crit, f"<span class='pass'>{int(d.passed.sum())}/{len(d)}</span>", worst])
+        rows.append([what, ns, crit, f"<span class='pass'>{int(d.passed.sum())}/{len(d)}</span>",
+                     f"{max(diffs):.1e}" if diffs else "–"])
     total, ok = len(c), int(c.passed.sum())
     rows.append(["<b>Total</b>", "", "", f"<span class='pass'><b>{ok}/{total}</b></span>", ""])
-    return table(["Check", "Sizes n", "Criterion", "Passed", "Worst error ÷ bound (exact / NumPy)"], rows,
-                 caption="Table 3. Correctness checks (each row counts the three implementations × test cases). "
-                         "An error ÷ bound of 1 would be the theoretical worst case.", num_cols=(3, 4))
+    return table(["Check", "Sizes n", "Criterion", "Passed", "Largest difference to NumPy"], rows,
+                 caption="Table 3. Correctness checks (each row counts the three implementations × test cases).", num_cols=(3, 4))
 
 
 def runtime_table(ts):
@@ -99,27 +89,7 @@ def normalised_table(ts):
     for n in sorted(ts.n.unique()):
         rows.append([str(n)] + [(f"{p.loc[(n, l)].ns_per_multiply_add:.2f}" if (n, l) in p.index else "–") for l in LANGS])
     return table(["n", "Python", "Java", "C"], rows,
-                 caption="Table 5. Median time per inner iteration, <i>t</i>/<i>n</i>³ (ns). Constant = exactly cubic.", num_cols=(0, 1, 2, 3))
-
-
-def fits_tables(fits, loc):
-    rows = []
-    for _, r in fits.iterrows():
-        rows.append([LABEL[r.language], r.window, str(int(r.points)), f"{r.exponent:.2f}",
-                     f"{r.ci95_low:.2f}–{r.ci95_high:.2f}", f"{r.r_squared:.4f}"])
-    t1 = table(["Language", "Sizes", "Points", "Exponent", "95 % CI", "R²"], rows,
-               caption="Table 6. Log-log slope of median time against <i>n</i> over the sizes all three languages completed (ordinary least squares on the six medians; the CI reflects only the scatter of those points).",
-               num_cols=(2, 3, 4, 5))
-    ns = sorted(loc.n_to.unique())
-    heads = ["Local exponent between consecutive sizes"] + [f"→ {n}" for n in ns]
-    # languages have different size lists: build a size-aligned table
-    rows = []
-    for lang in LANGS:
-        d = loc[loc.language == lang].set_index("n_to")
-        rows.append([LABEL[lang]] + [(f"{d.loc[n].local_exponent:.2f}" if n in d.index else "–") for n in ns])
-    t2 = table(heads, rows, caption="Table 7. Local exponent log(<i>t</i>₂/<i>t</i>₁)/log(<i>n</i>₂/<i>n</i>₁) from each size to the next listed size (3 = cubic).",
-               num_cols=tuple(range(1, len(ns) + 1)))
-    return t1 + t2
+                 caption="Table 5. Median time per inner iteration, <i>t</i>/<i>n</i>³ (ns). A constant would mean exactly cubic growth.", num_cols=(0, 1, 2, 3))
 
 
 def ratio_table(rt):
@@ -129,7 +99,7 @@ def ratio_table(rt):
                      f"{r.java_over_c:.2f}×" if pd.notna(r.java_over_c) else "–",
                      f"{r.python_over_java:.1f}×" if pd.notna(r.python_over_java) else "–"])
     return table(["n", "Python ÷ C", "Java ÷ C", "Python ÷ Java"], rows,
-                 caption="Table 8. Ratios of median times (where both runs completed).", num_cols=(0, 1, 2, 3))
+                 caption="Table 6. Ratios of median times (where both runs completed).", num_cols=(0, 1, 2, 3))
 
 
 def memory_table(mem):
@@ -147,36 +117,19 @@ def memory_table(mem):
         row.append(f"{3 * 8 * n * n / 2**20:.2f}")
         rows.append(row)
     return table(["n", "Python", "Java", "C", "24<i>n</i>² bytes"], rows,
-                 caption="Table 9. Peak working set of the process (MiB): median over launches (min–max when more than one launch). Last column: array storage of the three matrices at 8 bytes per element.",
+                 caption="Table 7. Peak working set of the process (MiB): median over launches (min–max when more than one launch). Last column: size of the three matrices at 8 bytes per element.",
                  num_cols=(0, 1, 2, 3, 4))
-
-
-def bytes_per_element_table(mem):
-    m = mem[(mem.variant == "main") & (mem.n >= 300)]
-    rows = []
-    for lang in LANGS:
-        d = m[m.language == lang].sort_values("n")
-        if d.empty:
-            continue
-        rows.append([LABEL[lang], f"{d.baseline_mib.iloc[0]:.1f}",
-                     f"{d.net_bytes_per_element.median():.1f}",
-                     f"{d.net_bytes_per_element.min():.1f}–{d.net_bytes_per_element.max():.1f}"])
-    return table(["Language", "Baseline at n = 10 (MiB)", "Median net bytes per matrix element, n ≥ 300", "Range"], rows,
-                 caption="Table 10. Memory beyond the baseline per matrix element: (peak − baseline) ÷ (3<i>n</i>²). Array storage alone would be 8.",
-                 num_cols=(1, 2, 3))
 
 
 def limits_tables(lim, fails, limit_s):
     rows = [[LABEL[r.language], str(int(r.largest_feasible_n)), str(int(r.largest_attempted_n)), f"{limit_s:g} s"]
             for r in lim.itertuples()]
     t1 = table(["Language", "Largest size meeting all limits", "Largest size attempted", "Limit per multiplication"], rows,
-               caption="Table 11. Feasibility limits of the main comparison.", num_cols=(1, 2, 3))
-    if fails.empty:
-        return t1 + "<p>No launch failed.</p>"
+               caption="Table 8. Feasibility limits of the main comparison.", num_cols=(1, 2, 3))
     rows = [[LABEL[r.language], str(int(r.n)), esc(r.status), f"{r.wall_seconds:.0f} s", str(int(r.completed_batches_before_failure))]
             for r in fails[fails.variant == "main"].itertuples()]
     t2 = table(["Language", "n", "Outcome", "Wall time until stopped", "Batches completed before"], rows,
-               caption="Table 12. Launches that did not complete (results, not omissions): killed because a single multiplication exceeded the limit.",
+               caption="Table 9. Launches that did not complete: stopped because a single multiplication exceeded the limit (timeout is a result, not an omission).",
                num_cols=(1, 3, 4))
     return t1 + t2
 
@@ -186,12 +139,10 @@ def appendix_table(ts):
     for lang in LANGS:
         for r in ts[ts.language == lang].sort_values("n").itertuples():
             rows.append([LABEL[lang], str(r.n), str(r.launches), str(r.samples), str(r.inner_batch), fmt_time(r.median_s),
-                         fmt_time(r.q1_s), fmt_time(r.q3_s), f"{r.rel_iqr_percent:.1f}", fmt_time(r.min_s), fmt_time(r.max_s),
-                         f"{r.between_launch_spread_percent:.1f}" if r.launches > 1 else "–"])
-    return table(["Lang.", "n", "Launches", "Samples", "Mults per batch", "Median", "Q1", "Q3", "IQR/med (%)", "Min", "Max",
-                  "Launch spread (%)"], rows,
+                         fmt_time(r.q1_s), fmt_time(r.q3_s), f"{r.rel_iqr_percent:.1f}", fmt_time(r.min_s), fmt_time(r.max_s)])
+    return table(["Lang.", "n", "Launches", "Samples", "Mults per batch", "Median", "Q1", "Q3", "IQR/med (%)", "Min", "Max"], rows,
                  caption="Table A1. Every tested configuration of the main comparison: time per multiplication (all measured batches pooled).",
-                 num_cols=tuple(range(1, 12)))
+                 num_cols=tuple(range(1, 11)))
 
 
 # ---------------------------------------------------------------- pdf
@@ -224,9 +175,9 @@ def main():
     cfg = read_json(ROOT / "config" / "experiment.json")
     env = read_json(RESULTS / "environment.json")
     build = read_json(ROOT / "build" / "build-info.json")
-    ctx = dict(cfg=cfg, env=env, build=build, ts=T("time_summary"), mem=T("memory_summary"), fits=T("fits"),
-               loc=T("local_exponents"), rt=T("ratios"), lim=T("limits"), fails=T("failed_launches"),
-               warm=T("warmup"), chk=T("checksums"), bg=T("background_cpu"), launches=pd.read_csv(RESULTS / "launches.csv", keep_default_na=False),
+    ctx = dict(cfg=cfg, env=env, build=build, ts=T("time_summary"), mem=T("memory_summary"), rt=T("ratios"),
+               lim=T("limits"), fails=T("failed_launches"), warm=T("warmup"), chk=T("checksums"),
+               launches=pd.read_csv(RESULTS / "launches.csv", keep_default_na=False),
                limit_s=cfg["limits"]["seconds_per_multiplication"])
     ts, mem = ctx["ts"], ctx["mem"]
 
@@ -241,20 +192,18 @@ def main():
         runtime_table(ts),
         fig("fig1_runtime", "Figure 1. Median time of one multiplication against matrix size (log-log). Vertical bars are the IQR; × marks a launch stopped at the per-multiplication limit. The dashed line only shows the slope of <i>n</i>³; its position is arbitrary."),
         normalised_table(ts),
-        fig("fig2_normalised", "Figure 2. Median time per inner iteration, <i>t</i>/<i>n</i>³. Dotted lines mark where one matrix B stops fitting in the L2 and L3 caches (hypotheses from the cache sizes, not measurements)."),
-        TXT.scaling_text(ctx), fits_tables(ctx["fits"], ctx["loc"]), ratio_table(ctx["rt"]),
+        fig("fig2_normalised", "Figure 2. Median time per inner iteration, <i>t</i>/<i>n</i>³. Dotted lines mark where one matrix B stops fitting in the L2 and L3 caches (computed from the cache sizes, not measured)."),
+        TXT.scaling_text(ctx), ratio_table(ctx["rt"]),
         "<h3>4.3 Memory</h3>", TXT.memory_text(ctx), memory_table(mem),
         fig("fig3_memory", "Figure 3. Peak working set of the process against matrix size (log-log)."),
-        bytes_per_element_table(mem),
         "<h3>4.4 Limits, timeouts and failures</h3>", TXT.limits_text(ctx), limits_tables(ctx["lim"], ctx["fails"], ctx["limit_s"]),
         "<h3>4.5 Warm-up and variability</h3>", TXT.warmup_text(ctx),
         fig("fig5_warmup", "Figure 4. Batch times of the first launch of selected configurations, relative to that launch’s measured median (log scale): open circles = calibration batches, grey = warm-up batches, filled = measured batches."),
         "<h2>5. Discussion</h2>", TXT.discussion(ctx),
         "<h2>6. Limitations</h2>", TXT.limitations(ctx),
         "<h2>7. Conclusions</h2>", TXT.conclusions(ctx),
-        S.disclosure(), S.references(),
+        S.disclosure(), S.references(), TXT.materials(ctx, args.repo_url),
         "<h2>Appendix A. Full results of the main comparison</h2>", appendix_table(ts),
-        "<h2>Appendix B. Reproducibility materials</h2>", TXT.reproducibility(ctx, args.repo_url),
     ]
     html = page("Basic Matrix Multiplication in Python, Java and C", "\n".join(parts))
     REPORT.mkdir(exist_ok=True)
