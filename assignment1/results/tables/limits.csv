@@ -1,0 +1,4 @@
+language,largest_feasible_n,largest_attempted_n,limit_seconds_per_multiplication
+python,1000,1500,120
+java,2000,2500,120
+c,2500,3000,120

@@ -1,0 +1,427 @@
+<!doctype html><html lang='en'><head><meta charset='utf-8'><title>Basic Matrix Multiplication in Python, Java and C</title><style>
+@page { size: A4; margin: 17mm 16mm 18mm 16mm;
+        @bottom-center { content: counter(page) " / " counter(pages); font: 8.5pt 'Segoe UI', Arial, sans-serif; color: #6b6a66; } }
+:root { --ink:#0b0b0b; --ink2:#3d3c39; --muted:#6b6a66; --line:#d6d5ce; --head:#eef3f9; --accent:#184f95; }
+* { box-sizing: border-box; }
+body { font: 10pt/1.42 'Segoe UI', Calibri, Arial, sans-serif; color: var(--ink); margin: 0; text-align: justify; hyphens: auto; }
+h1 { font-size: 19pt; line-height: 1.2; margin: 0 0 4pt; text-align: left; }
+h2 { font-size: 13pt; margin: 17pt 0 5pt; color: var(--accent); text-align: left; break-after: avoid; }
+h3 { font-size: 10.5pt; margin: 11pt 0 3pt; text-align: left; break-after: avoid; }
+p { margin: 0 0 6pt; orphans: 3; widows: 3; }
+.meta { color: var(--ink2); margin-bottom: 8pt; text-align: left; font-size: 9.5pt; }
+.abstract { border-left: 3px solid var(--accent); padding: 2pt 0 2pt 9pt; margin: 8pt 0 6pt; background: #f7f9fc; }
+table { border-collapse: collapse; width: 100%; margin: 4pt 0 9pt; font-size: 8.3pt; font-variant-numeric: tabular-nums; break-inside: avoid; }
+th { background: var(--head); text-align: left; padding: 3pt 5pt; border-bottom: 1.2px solid var(--accent); }
+td { padding: 2.2pt 5pt; border-bottom: 0.6px solid var(--line); vertical-align: top; text-align: left; hyphens: manual; }
+td.num, th.num { text-align: right; }
+td.num { white-space: nowrap; }
+caption { caption-side: top; text-align: left; font-weight: 600; font-size: 8.8pt; margin-bottom: 3pt; color: var(--ink2); }
+figure { margin: 7pt 0 9pt; break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; }
+figcaption { font-size: 8.8pt; color: var(--ink2); text-align: left; margin-top: 3pt; }
+code { font: 8.6pt Consolas, 'Cascadia Mono', monospace; background: #f1f0ec; padding: 0 2pt; border-radius: 2pt; }
+pre { font: 8pt/1.35 Consolas, 'Cascadia Mono', monospace; background: #f6f5f1; padding: 6pt 8pt; border: 0.6px solid var(--line);
+      border-radius: 3pt; overflow: hidden; white-space: pre-wrap; text-align: left; break-inside: avoid; margin: 4pt 0 8pt; }
+ul, ol { margin: 0 0 6pt; padding-left: 16pt; } li { margin-bottom: 2.5pt; }
+.small { font-size: 8.6pt; color: var(--ink2); }
+.refs li { font-size: 8.8pt; text-align: left; }
+.pass { color: #006300; font-weight: 600; } .warn { color: #8a5a00; font-weight: 600; }
+</style></head><body>
+<h1>Basic Matrix Multiplication in Python, Java and C:<br>How Matrix Size Drives Runtime and Memory</h1>
+<p class="meta"><b>Abdelaziz Choukri Mohamed</b> · Big Data 2026–2027, Grado en Ciencia e Ingeniería de Datos, Universidad de Las Palmas de Gran Canaria<br>
+Individual Assignment 1 — Basic Matrix Multiplication in Different Languages · 2026-10-17<br>
+Code, raw data and scripts: (GitHub repository URL to be inserted before submission)</p>
+
+
+<div class="abstract"><b>Abstract.</b> This study measures how the matrix size <i>n</i> affects the runtime and the memory of the textbook triple-loop multiplication of dense <i>n</i> × <i>n</i>
+<code>double</code> matrices in Python, Java and C, on one Windows laptop (Intel Core i5-1135G7), with identical input files, loop order and timing protocol.
+Sizes were increased until a single multiplication exceeded 120 s: the largest size that met the budget was <i>n</i> = 1000 for Python, 2000 for Java and 2500 for C.
+All three implementations return bit-identical results. Kernel time (median and interquartile range over repeated batches and up to three process launches) grows roughly, but not exactly, cubically:
+the log-log slope over <i>n</i> = 100–1000 is 3.18 for Python, 3.39 for Java and 3.23 for C, and the time per inner iteration rises with <i>n</i> in every language, steeply in C and Java above <i>n</i> ≈ 1500.
+Python is about 67–78× slower than C (≈ 73× typically); Java is 1.2–1.7× slower than C up to <i>n</i> = 1000 but 4.9× slower at <i>n</i> = 1500.
+Peak process memory beyond the runtime baseline is about 7.9 bytes per matrix element in C, 8.6 in Java (plus a 42 MiB JVM baseline) and 40.7 in Python.
+The conclusions hold for these implementations, settings, inputs and this machine; the causes of the memory-related slowdowns were not measured with hardware counters and are discussed as hypotheses.</div>
+
+
+<h2>1. Introduction and objective</h2>
+<p>Multiplying two dense <i>n</i> × <i>n</i> matrices with three nested loops needs <i>n</i>³ multiply-add operations and is the standard
+starting point for talking about performance and scalability [1]. The algorithm is identical in every language, but the
+cost of each operation is not: an interpreter, a just-in-time compiler and an ahead-of-time compiler turn the same source into very
+different machine behaviour, and the way each language lays matrices out in memory decides how well the processor caches can help [2].</p>
+<p><b>Research question.</b> <i>How does the matrix size <i>n</i> affect the runtime and the memory use of the textbook triple-loop
+multiplication of dense <code>double</code> matrices implemented in Python, Java and C, under one fixed and documented set of conditions on one machine?</i>
+The factor that is changed is <i>n</i> (and, as a second factor, the language); the outcomes are the time of one multiplication and the peak memory of the process.</p>
+<p><b>Predictions</b> (formed from the algorithmic model and the course material before the final measurements; a small pilot was used only
+to choose sizes and limits, not to tune the code):</p>
+<ol>
+<li><b>P1 – cubic growth.</b> While the working set stays in cache, the time of one multiplication grows like <i>n</i>³ in every language, so the
+log-log slope is about 3 and the time per inner iteration, <i>t</i>/<i>n</i>³, is roughly constant. Small sizes may sit above that line because of fixed overheads.</li>
+<li><b>P2 – constants differ by language.</b> The constant should be far larger in Python (interpreted bytecode, boxed floats) than in Java
+or C; Java, after JIT compilation, should land in the same order of magnitude as C.</li>
+<li><b>P3 – memory effects at large <i>n</i>.</b> In the <i>i-j-k</i> order the inner loop walks matrix B down a column, one cache line per iteration [2]. Once B (8<i>n</i>² bytes)
+no longer fits in the 1.25 MiB L2 cache (<i>n</i> ≈ 400) and then in the 8 MiB L3 cache (<i>n</i> ≈ 1000), <i>t</i>/<i>n</i>³ should rise, in all three languages.</li>
+<li><b>P4 – memory.</b> C needs about 24<i>n</i>² bytes for the three matrices plus a small runtime; Java the same plus a larger JVM baseline;
+Python much more per element, because each element is a pointer to a separate 24-byte <code>float</code> object.</li>
+</ol>
+
+
+<h2>2. Background</h2>
+<p><b>Algorithm.</b> For square matrices <i>A</i> and <i>B</i>, <i>C</i><sub>ij</sub> = Σ<sub>k</sub> <i>A</i><sub>ik</sub> <i>B</i><sub>kj</sub>. Evaluating it directly takes
+Θ(<i>n</i>³) arithmetic operations [1]. In the loop order <i>i-j-k</i> used here, the inner loop reads A along a row (consecutive addresses) and B along a column
+(addresses <i>n</i> elements apart), which is the access pattern analysed by Drepper [2, Sec. 6.2.1].</p>
+<p><b>Why the three languages should behave differently.</b> CPython executes bytecode in an interpreter and represents every number as an object, so a <code>list</code> of floats stores
+pointers to separate <code>float</code> objects (24 bytes each in this interpreter). HotSpot starts in an interpreter, profiles the code and recompiles hot loops
+with its tiered JIT compilers; a <code>double[][]</code> is an array of row arrays holding unboxed 8-byte values. A C compiler produces native code before the program runs,
+and a <code>malloc</code>ed block holds the elements back to back. Compiler options matter: GCC enables, among others, loop interchange at <code>-O3</code> [5], which could silently change the loop order, so the main comparison uses <code>-O2</code>.</p>
+<p><b>Floating point.</b> All three programs use IEEE-754 binary64 and the same operation order, so their results can be compared bit by bit. In general, different evaluation orders give slightly different
+sums; for a dot product of length <i>n</i> computed by recursive summation the error is bounded by γ<sub>n</sub> Σ<sub>k</sub>|<i>a</i><sub>ik</sub><i>b</i><sub>kj</sub>| with γ<sub>n</sub> = <i>nu</i>/(1−<i>nu</i>) and unit roundoff <i>u</i> = 2<sup>−53</sup> [3]; this bound is used as the numerical tolerance in Section 3.4.</p>
+
+
+<h2>3. Methodology</h2>
+<h3>3.1 Implementations</h3>
+<p>The required algorithm, the straightforward triple loop with <i>O</i>(<i>n</i>³) work, is implemented in all three languages; no optimised library routine
+replaces the loops (NumPy is used only to check results, Section 3.4). The loops are, literally:</p>
+<pre><b>Python</b>
+for i in range(n):
+    for j in range(n):
+        s = 0.0
+        for k in range(n):
+            s += a[i][k] * b[k][j]
+        c[i][j] = s
+
+<b>Java</b>
+for (int i = 0; i &lt; n; i++)
+    for (int j = 0; j &lt; n; j++) {
+        double sum = 0.0;
+        for (int k = 0; k &lt; n; k++) sum += a[i][k] * b[k][j];
+        c[i][j] = sum;
+    }
+
+<b>C</b>
+for (int i = 0; i &lt; n; i++)
+    for (int j = 0; j &lt; n; j++) {
+        double sum = 0.0;
+        for (int k = 0; k &lt; n; k++) sum += a[(size_t)i*n + k] * b[(size_t)k*n + j];
+        c[(size_t)i*n + j] = sum;
+    }</pre>
+<table>
+<caption>Table 1. The three implementations and what is fixed or different between them.</caption>
+<tr><th class=''></th><th class=''>Python</th><th class=''>Java</th><th class=''>C</th></tr>
+<tr><td class=''>Runtime / compiler</td><td class=''>CPython 3.12.0 (python.org build, MSC v.1935), standard library only</td><td class=''>openjdk version 25.0.2 2026-01-20 (HotSpot, tiered C1/C2 JIT, G1 GC)</td><td class=''>GCC (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r2) 16.2.0</td></tr>
+<tr><td class=''>Flags / settings</td><td class=''>default interpreter (no <code>-O</code>)</td><td class=''><code>-Xmx4g</code>; all other JVM options default</td><td class=''><code>-std=c11 -Wall -Wextra -O2</code>; no <code>-march</code>, no <code>-ffast-math</code></td></tr>
+<tr><td class=''>Matrix storage</td><td class=''>list of <i>n</i> row lists; every element is a pointer to a 24-byte <code>float</code> object</td><td class=''><code>double[n][n]</code>: array of <i>n</i> row arrays of unboxed 8-byte values</td><td class=''>one <code>malloc</code>ed <code>double[n*n]</code> per matrix, row-major, 8 bytes per element</td></tr>
+<tr><td class=''>Kernel timer</td><td class=''><code>time.perf_counter_ns</code></td><td class=''><code>System.nanoTime</code></td><td class=''><code>QueryPerformanceCounter</code></td></tr>
+<tr><td class=''>Loop order, arithmetic</td><td class=''><i>i-j-k</i>, local accumulator, <code>c[i][j]</code> assigned once</td><td class=''>same</td><td class=''>same</td></tr>
+<tr><td class=''>Sizes <i>n</i> planned</td><td class=''>10, 20, 50, 100, 200, 300, 500, 700, 1000, 1500</td><td class=''>10, 20, 50, 100, 200, 300, 500, 700, 1000, 1500, 2000, 2500</td><td class=''>10, 20, 50, 100, 200, 300, 500, 700, 1000, 1500, 2000, 2500, 3000</td></tr>
+</table>
+<p>The accumulator is a local variable in all three languages so that every language performs the same additions in the same order. (The course’s JMH example accumulates directly into
+<code>c[i][j]</code>; that variant is not used here.) The Python version is deliberately the unoptimised textbook loop, with no hoisting of row lookups.
+The unavoidable differences are the storage layouts above, the fact that Python allocates one new <code>float</code> object per result element inside the timed kernel, and that the JVM compiles
+code at run time and runs helper threads. Storage layout and compiler flags are not varied in this study; they appear only as possible explanations in Section 5.</p>
+<h3>3.2 Inputs</h3>
+<p>All implementations read the same files <code>A_n.bin</code> and <code>B_n.bin</code> (raw little-endian binary64, row-major, values uniform in [0, 1)). They are generated with NumPy’s
+<code>default_rng([20261012, n, which])</code>, so each file is reproducible on its own, and their SHA-256 hashes are stored in <code>inputs/checksums.json</code>. Every language therefore multiplies
+exactly the same logical matrices; no language uses its own random-number generator.</p>
+<h3>3.3 Environment</h3>
+<table>
+<caption>Table 2. Hardware and software environment (recorded by <code>scripts/collect_environment.py</code> into <code>results/environment.json</code>).</caption>
+<tr><th class=''>Item</th><th class=''>Value</th></tr>
+<tr><td class=''>Machine</td><td class=''>HP 250 G8 Notebook PC, Windows 11 Pro (build 26200)</td></tr>
+<tr><td class=''>CPU</td><td class=''>11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz: 4 physical cores, 8 logical processors; L2 5 MiB in total (1.25 MiB per core), L3 8 MiB shared</td></tr>
+<tr><td class=''>RAM</td><td class=''>15.7 GB</td></tr>
+<tr><td class=''>Power</td><td class=''>AC power, Windows power plan “Equilibrado” (Balanced); no change was made to frequency or affinity settings</td></tr>
+<tr><td class=''>Threads used by the kernel</td><td class=''>1 in every language (no parallel code, no numerical library). The JVM additionally runs its own JIT-compiler and GC threads.</td></tr>
+<tr><td class=''>Analysis tools</td><td class=''>Python 3.13.9 (Anaconda) with NumPy 2.3.5, pandas 2.3.3, SciPy 1.16.3, Matplotlib 3.10.6</td></tr>
+</table>
+<h3>3.4 Correctness validation</h3>
+<p>Before any benchmark, <code>scripts/run_tests.py</code> multiplies test matrices with each implementation and compares the result with references (Table 3 in Section 4.1 summarises the outcome). The checks are: identity and zero matrices
+(bit-exact); hand-computed 2 × 2 and 3 × 3 products (bit-exact); random integer-valued matrices stored as doubles, where every partial sum is exactly representable so any summation order must agree with NumPy’s integer product (bit-exact);
+random real matrices in [0, 1) and [−1, 1) and the shared benchmark inputs, compared (a) with an exact rational reference on 200 random entries and (b) with NumPy’s <code>A @ B</code> on all entries, against the bound γ<sub>n</sub> Σ<sub>k</sub>|<i>a</i><sub>ik</sub><i>b</i><sub>kj</sub>| of Section 2
+(a result passes if the error is at most one bound against the exact value, and at most two bounds against NumPy, whose own rounding error is of the same size). Finally, the three implementations must return <b>bit-identical</b> matrices; this holds because they use the same
+operation order and no fused multiply-add (GCC’s default for <code>-std=c11</code> is <code>-ffp-contract=off</code> [5]). The sum of all elements of C is also printed after every timed batch, which both proves that the computation ran and lets the checksums be compared across languages.</p>
+<h3>3.5 Timing protocol</h3>
+<ul>
+<li><b>What the timer includes.</b> The multiplication kernel only. Input files are read, and the result matrix is allocated, before timing; the kernel assigns every element of C, so no initialisation is needed or timed. This is a kernel measurement, not an end-to-end one, and no end-to-end number is mixed with it.</li>
+<li><b>Harness instead of JMH.</b> The course material suggests JMH, pytest-benchmark and <code>perf</code> [4, 10]. Here one small harness with the same batching, warm-up, repetition and memory-measurement rules is used for all three languages, because the comparison needs the same timing boundary everywhere
+(<code>perf</code> is not available on Windows). Its behaviour is documented in this section and its raw output is kept; it was not cross-checked against JMH.</li>
+<li><b>Clocks.</b> Monotonic timers in each language (Section 3.1). In CPython on Windows <code>perf_counter</code> is backed by <code>QueryPerformanceCounter</code> (resolution 100 ns on this machine) [7], the same source as the C program [8].</li>
+<li><b>Batches.</b> To keep every timed interval much longer than the timer resolution, a <i>batch</i> executes <i>m</i> multiplications back to back and the program reports time per multiplication. <i>m</i> is found by doubling from 1 until a batch lasts at least 0.2 s
+(<i>m</i> = 1 whenever a single multiplication already takes longer). These <i>calibration</i> batches are also the first warm-up.</li>
+<li><b>Warm-up and repetitions.</b> After calibration, a configuration-specific number of warm-up batches is run (0–5; see <code>config/experiment.json</code>), followed by 5–15 <i>measured</i> batches. Warm-up and calibration batches are kept in the raw file but never enter a statistic. Five or more measured batches are collected for every configuration.</li>
+<li><b>Launches.</b> Each configuration is run in 1–3 separate processes (<i>launches</i>) so that process-level variation (JIT decisions, memory placement) is sampled, and the launches are interleaved in time: one sweep over all sizes and languages, then the next sweep with the language order rotated. Cheap configurations get three launches; the expensive ones, where one launch lasts minutes, get one or two, which is stated in Appendix A.</li>
+<li><b>Summary statistics.</b> All measured batches of all successful launches of a configuration are pooled. The central value is the <b>median</b>; variability is the <b>interquartile range</b> (IQR, quartiles by linear interpolation), reported as [Q1–Q3]. All raw measurements are kept in <code>results/raw_samples.csv</code>, and no observation was removed.</li>
+<li><b>Dead-code protection.</b> After each batch the sum of all elements of C is computed and printed; the multiplication function is not inlined in C (<code>noinline</code>) so that repeated calls in a batch cannot be merged.</li>
+</ul>
+<h3>3.6 Memory measurement</h3>
+<p><b>Metric:</b> the <i>peak working set</i> of the whole process (<code>PeakWorkingSetSize</code> of <code>PROCESS_MEMORY_COUNTERS_EX</code> [9]) read by the driver with <code>GetProcessMemoryInfo</code> after the process ends, one value per launch; peak committed (private) bytes, <code>PeakPagefileUsage</code>, is recorded as well.
+It includes the language runtime, the loaded input data, the result and all temporary data, so it is <b>not</b> the same quantity as managed-heap use or as 24<i>n</i>² bytes of array storage, and the figures must not be compared as if it were. The runtime baseline is estimated from the smallest size (<i>n</i> = 10, three matrices of 800 bytes).
+Limits of the metric: working set counts resident pages only, the JVM reserves and touches memory in its own way, and a single peak per launch gives no information about when it occurred. CPU utilisation was not measured because it is not needed for the conclusions.</p>
+<h3>3.7 Sizes, budgets and fixed settings</h3>
+<p>The size sequence is roughly geometric (10, 20, 50, 100, 200, 300, 500, 700, 1000, 1500, 2000, 2500, 3000 where feasible) and avoids powers of two, whose large strides map matrix columns onto few cache sets and would confound the trend with an associativity effect. It spans the three regimes of P3 (B inside L2, inside L3, larger than L3).
+Budgets were declared before the final run: <b>at most 120 s per single multiplication</b> (a launch that prints nothing for 120 s is killed and recorded as a timeout), <b>at most 30 min per launch</b> and <b>4 GiB of memory</b> (also the JVM heap cap).
+The largest size that met the limits is reported separately from the largest size attempted (Section 4.4); timeouts are reported as results at their limit and never given an invented time.
+<b>Fixed in the main comparison:</b> machine and power state, input files, loop order, numeric type, accumulator style, single-threaded kernels, timing boundary, batch rule, limits and, per language, the compiler/runtime settings in Table 1.
+For scale: three <i>n</i> × <i>n</i> binary64 matrices need 24<i>n</i>² bytes, 216 MB at <i>n</i> = 3000, far below the memory budget, so time, not memory, is the binding limit in this study.</p>
+
+<h2>4. Results</h2>
+<h3>4.1 Correctness</h3>
+
+<p>All 84 checks passed (84/84; Table 3). For random real matrices the largest error was 0.31 times the theoretical bound, so the bound is a meaningful tolerance and the results are not merely “close”.
+The sum of all elements of C that every program prints after every timed batch was identical in all three languages for every size (<code>results/tables/checksums.csv</code>),
+and within a launch every batch gave the same checksum, so the timed work was really performed on every batch.</p>
+
+<table>
+<caption>Table 3. Correctness checks (each row counts the three implementations × test cases). An error ÷ bound of 1 would be the theoretical worst case.</caption>
+<tr><th class=''>Check</th><th class=''>Sizes n</th><th class=''>Criterion</th><th class='num'>Passed</th><th class='num'>Worst error ÷ bound (exact / NumPy)</th></tr>
+<tr><td class=''>I × X = X</td><td class=''>1, 7, 33</td><td class=''>bit-exact</td><td class='num'><span class='pass'>9/9</span></td><td class='num'>–</td></tr>
+<tr><td class=''>X × I = X</td><td class=''>1, 7, 33</td><td class=''>bit-exact</td><td class='num'><span class='pass'>9/9</span></td><td class='num'>–</td></tr>
+<tr><td class=''>0 × X = 0</td><td class=''>1, 7, 33</td><td class=''>bit-exact</td><td class='num'><span class='pass'>9/9</span></td><td class='num'>–</td></tr>
+<tr><td class=''>hand-computed 2 × 2 product</td><td class=''>2</td><td class=''>bit-exact</td><td class='num'><span class='pass'>3/3</span></td><td class='num'>–</td></tr>
+<tr><td class=''>hand-computed 3 × 3 product</td><td class=''>3</td><td class=''>bit-exact</td><td class='num'><span class='pass'>3/3</span></td><td class='num'>–</td></tr>
+<tr><td class=''>random integers 0..9 vs NumPy int64 product</td><td class=''>50, 100</td><td class=''>bit-exact</td><td class='num'><span class='pass'>6/6</span></td><td class='num'>–</td></tr>
+<tr><td class=''>random reals in [0, 1)</td><td class=''>10, 100, 200</td><td class=''>error ≤ γₙ Σ|aᵢₖbₖⱼ|</td><td class='num'><span class='pass'>9/9</span></td><td class='num'>0.306 / 0.324</td></tr>
+<tr><td class=''>random reals in [−1, 1)</td><td class=''>10, 100, 200</td><td class=''>error ≤ γₙ Σ|aᵢₖbₖⱼ|</td><td class='num'><span class='pass'>9/9</span></td><td class='num'>0.183 / 0.291</td></tr>
+<tr><td class=''>the shared benchmark inputs</td><td class=''>100, 300</td><td class=''>error ≤ γₙ Σ|aᵢₖbₖⱼ|</td><td class='num'><span class='pass'>6/6</span></td><td class='num'>0.086 / 0.043</td></tr>
+<tr><td class=''>C, Java and Python results identical</td><td class=''>1, 2, 3, 7, 10, 33, 50, 100, 200, 300</td><td class=''>bit-identical</td><td class='num'><span class='pass'>21/21</span></td><td class='num'>–</td></tr>
+<tr><td class=''><b>Total</b></td><td class=''></td><td class=''></td><td class='num'><span class='pass'><b>84/84</b></span></td><td class='num'></td></tr>
+</table>
+<h3>4.2 Runtime</h3>
+
+<p>Table 4 and Figure 1 give the time of one multiplication. On the log-log plot the three curves are nearly parallel straight lines from <i>n</i> = 10 to <i>n</i> ≈ 1000: the cost of one multiplication goes from
+67.6 µs (Python), 930 ns (Java) and 537 ns (C) at <i>n</i> = 10 to 92.4 s, 2.38 s and 1.37 s at <i>n</i> = 1000.
+Above that, the Java and C curves bend upwards (Java first); Python stops at <i>n</i> = 1000 because the next size, 1500, exceeded the 120 s limit.</p>
+
+<table>
+<caption>Table 4. Time of one multiplication: median [Q1–Q3] over all measured batches of all launches (counts in Appendix A).</caption>
+<tr><th class='num'>n</th><th class='num'>Python</th><th class='num'>Java</th><th class='num'>C</th></tr>
+<tr><td class='num'>10</td><td class='num'>67.6 µs [63.3 µs–74.3 µs]</td><td class='num'>930 ns [869 ns–976 ns]</td><td class='num'>537 ns [504 ns–565 ns]</td></tr>
+<tr><td class='num'>20</td><td class='num'>509 µs [484 µs–527 µs]</td><td class='num'>7.09 µs [6.73 µs–7.74 µs]</td><td class='num'>4.34 µs [4.14 µs–4.59 µs]</td></tr>
+<tr><td class='num'>50</td><td class='num'>7.82 ms [7.16 ms–8.72 ms]</td><td class='num'>105 µs [102 µs–108 µs]</td><td class='num'>85.8 µs [81.5 µs–92.1 µs]</td></tr>
+<tr><td class='num'>100</td><td class='num'>62.5 ms [58.7 ms–65.2 ms]</td><td class='num'>965 µs [935 µs–1.03 ms]</td><td class='num'>802 µs [757 µs–975 µs]</td></tr>
+<tr><td class='num'>200</td><td class='num'>526 ms [507 ms–563 ms]</td><td class='num'>8.6 ms [8.35 ms–8.89 ms]</td><td class='num'>7.16 ms [6.94 ms–7.62 ms]</td></tr>
+<tr><td class='num'>300</td><td class='num'>1.91 s [1.85 s–2 s]</td><td class='num'>31 ms [30 ms–32.7 ms]</td><td class='num'>26.3 ms [25.3 ms–27.9 ms]</td></tr>
+<tr><td class='num'>500</td><td class='num'>9.86 s [9.63 s–10.1 s]</td><td class='num'>200 ms [189 ms–206 ms]</td><td class='num'>133 ms [130 ms–141 ms]</td></tr>
+<tr><td class='num'>700</td><td class='num'>29.3 s [29.1 s–30 s]</td><td class='num'>618 ms [589 ms–693 ms]</td><td class='num'>408 ms [387 ms–534 ms]</td></tr>
+<tr><td class='num'>1000</td><td class='num'>92.4 s [92.2 s–92.9 s]</td><td class='num'>2.38 s [2.32 s–2.48 s]</td><td class='num'>1.37 s [1.35 s–1.39 s]</td></tr>
+<tr><td class='num'>1500</td><td class='num'>not run / timeout</td><td class='num'>26.8 s [26.8 s–26.8 s]</td><td class='num'>5.43 s [5.34 s–6.64 s]</td></tr>
+<tr><td class='num'>2000</td><td class='num'>not run / timeout</td><td class='num'>82.3 s [81.9 s–82.8 s]</td><td class='num'>28.4 s [27.2 s–30.2 s]</td></tr>
+<tr><td class='num'>2500</td><td class='num'>not run / timeout</td><td class='num'>not run / timeout</td><td class='num'>68.8 s [68.4 s–68.9 s]</td></tr>
+</table>
+<figure><img src='../results/figures/fig1_runtime.png' style='width:100%'><figcaption>Figure 1. Median time of one multiplication against matrix size (log-log). Vertical bars are the IQR; × marks a launch stopped at the per-multiplication limit. The dashed line only shows the slope of <i>n</i>³; its position is arbitrary.</figcaption></figure>
+<table>
+<caption>Table 5. Median time per inner iteration, <i>t</i>/<i>n</i>³ (ns). Constant = exactly cubic.</caption>
+<tr><th class='num'>n</th><th class='num'>Python</th><th class='num'>Java</th><th class='num'>C</th></tr>
+<tr><td class='num'>10</td><td class='num'>67.61</td><td class='num'>0.93</td><td class='num'>0.54</td></tr>
+<tr><td class='num'>20</td><td class='num'>63.58</td><td class='num'>0.89</td><td class='num'>0.54</td></tr>
+<tr><td class='num'>50</td><td class='num'>62.57</td><td class='num'>0.84</td><td class='num'>0.69</td></tr>
+<tr><td class='num'>100</td><td class='num'>62.46</td><td class='num'>0.97</td><td class='num'>0.80</td></tr>
+<tr><td class='num'>200</td><td class='num'>65.74</td><td class='num'>1.08</td><td class='num'>0.89</td></tr>
+<tr><td class='num'>300</td><td class='num'>70.60</td><td class='num'>1.15</td><td class='num'>0.98</td></tr>
+<tr><td class='num'>500</td><td class='num'>78.88</td><td class='num'>1.60</td><td class='num'>1.07</td></tr>
+<tr><td class='num'>700</td><td class='num'>85.55</td><td class='num'>1.80</td><td class='num'>1.19</td></tr>
+<tr><td class='num'>1000</td><td class='num'>92.38</td><td class='num'>2.38</td><td class='num'>1.37</td></tr>
+<tr><td class='num'>1500</td><td class='num'>–</td><td class='num'>7.94</td><td class='num'>1.61</td></tr>
+<tr><td class='num'>2000</td><td class='num'>–</td><td class='num'>10.29</td><td class='num'>3.54</td></tr>
+<tr><td class='num'>2500</td><td class='num'>–</td><td class='num'>–</td><td class='num'>4.40</td></tr>
+</table>
+<figure><img src='../results/figures/fig2_normalised.png' style='width:100%'><figcaption>Figure 2. Median time per inner iteration, <i>t</i>/<i>n</i>³. Dotted lines mark where one matrix B stops fitting in the L2 and L3 caches (hypotheses from the cache sizes, not measurements).</figcaption></figure>
+
+<p>If the cost were exactly cubic, <i>t</i>/<i>n</i>³ (Figure 2, Table 5) would be flat. It is almost flat only for small <i>n</i>: in Python it stays at 63–66 ns up to <i>n</i> = 200 and then rises to 92 ns at <i>n</i> = 1000
+(48 % above <i>n</i> = 100). In C it grows from 0.54 ns at <i>n</i> = 10 through 1.07 ns (500) and 1.37 ns (1000) and jumps
+between <i>n</i> = 1500 (1.61 ns) and <i>n</i> = 2000 (3.54 ns) to 4.40 ns at 2500. Java starts at 0.84–0.93 ns, reaches 2.38 ns at 1000, then 7.9 ns at 1500 and 10.3 ns at 2000.
+The fitted slope over the sizes all three languages completed (<i>n</i> = 100–1000, Table 6) is 3.18 (95 % CI 3.13–3.23) for Python, 3.39 (3.23–3.56) for Java and 3.23 (3.17–3.28) for C;
+none of the intervals contains 3, so the growth is cubic only approximately. The local exponents (Table 7) show where the extra growth appears: for C the steep step is between <i>n</i> = 1500 and 2000 (local exponent 5.7),
+for Java between 1000 and 1500 (6.0).</p>
+<p>Table 8 gives the ratios between languages. Python is 126× slower than C at <i>n</i> = 10 (fixed loop overhead matters most there) and between
+67× and 78× for <i>n</i> ≥ 100. Java is 1.18–1.20× slower than C for
+<i>n</i> = 100–300, 1.5–1.7× for <i>n</i> = 500–1000, and 4.9× and 2.9× at 1500 and 2000.
+The Java value at <i>n</i> = 1500 rests on one launch (the second launch failed, Section 4.4); the one measured batch of the failed launch,
+26.3 s, is within 2 % of it.</p>
+
+<table>
+<caption>Table 6. Log-log slope of median time against <i>n</i> over the sizes all three languages completed (ordinary least squares on the six medians; the CI reflects only the scatter of those points).</caption>
+<tr><th class=''>Language</th><th class=''>Sizes</th><th class='num'>Points</th><th class='num'>Exponent</th><th class='num'>95 % CI</th><th class='num'>R²</th></tr>
+<tr><td class=''>Python</td><td class=''>n=100-1000</td><td class='num'>6</td><td class='num'>3.18</td><td class='num'>3.13–3.23</td><td class='num'>0.9999</td></tr>
+<tr><td class=''>Java</td><td class=''>n=100-1000</td><td class='num'>6</td><td class='num'>3.39</td><td class='num'>3.23–3.56</td><td class='num'>0.9988</td></tr>
+<tr><td class=''>C</td><td class=''>n=100-1000</td><td class='num'>6</td><td class='num'>3.23</td><td class='num'>3.17–3.28</td><td class='num'>0.9998</td></tr>
+</table><table>
+<caption>Table 7. Local exponent log(<i>t</i>₂/<i>t</i>₁)/log(<i>n</i>₂/<i>n</i>₁) from each size to the next listed size (3 = cubic).</caption>
+<tr><th class=''>Local exponent between consecutive sizes</th><th class='num'>→ 20</th><th class='num'>→ 50</th><th class='num'>→ 100</th><th class='num'>→ 200</th><th class='num'>→ 300</th><th class='num'>→ 500</th><th class='num'>→ 700</th><th class='num'>→ 1000</th><th class='num'>→ 1500</th><th class='num'>→ 2000</th><th class='num'>→ 2500</th></tr>
+<tr><td class=''>Python</td><td class='num'>2.91</td><td class='num'>2.98</td><td class='num'>3.00</td><td class='num'>3.07</td><td class='num'>3.18</td><td class='num'>3.22</td><td class='num'>3.24</td><td class='num'>3.22</td><td class='num'>–</td><td class='num'>–</td><td class='num'>–</td></tr>
+<tr><td class=''>Java</td><td class='num'>2.93</td><td class='num'>2.94</td><td class='num'>3.21</td><td class='num'>3.16</td><td class='num'>3.16</td><td class='num'>3.65</td><td class='num'>3.36</td><td class='num'>3.78</td><td class='num'>5.97</td><td class='num'>3.90</td><td class='num'>–</td></tr>
+<tr><td class=''>C</td><td class='num'>3.01</td><td class='num'>3.26</td><td class='num'>3.22</td><td class='num'>3.16</td><td class='num'>3.21</td><td class='num'>3.17</td><td class='num'>3.33</td><td class='num'>3.40</td><td class='num'>3.39</td><td class='num'>5.75</td><td class='num'>3.97</td></tr>
+</table>
+<table>
+<caption>Table 8. Ratios of median times (where both runs completed).</caption>
+<tr><th class='num'>n</th><th class='num'>Python ÷ C</th><th class='num'>Java ÷ C</th><th class='num'>Python ÷ Java</th></tr>
+<tr><td class='num'>10</td><td class='num'>126.0×</td><td class='num'>1.73×</td><td class='num'>72.7×</td></tr>
+<tr><td class='num'>20</td><td class='num'>117.3×</td><td class='num'>1.64×</td><td class='num'>71.8×</td></tr>
+<tr><td class='num'>50</td><td class='num'>91.2×</td><td class='num'>1.22×</td><td class='num'>74.8×</td></tr>
+<tr><td class='num'>100</td><td class='num'>77.9×</td><td class='num'>1.20×</td><td class='num'>64.7×</td></tr>
+<tr><td class='num'>200</td><td class='num'>73.5×</td><td class='num'>1.20×</td><td class='num'>61.1×</td></tr>
+<tr><td class='num'>300</td><td class='num'>72.4×</td><td class='num'>1.18×</td><td class='num'>61.5×</td></tr>
+<tr><td class='num'>500</td><td class='num'>74.0×</td><td class='num'>1.50×</td><td class='num'>49.4×</td></tr>
+<tr><td class='num'>700</td><td class='num'>71.9×</td><td class='num'>1.51×</td><td class='num'>47.5×</td></tr>
+<tr><td class='num'>1000</td><td class='num'>67.4×</td><td class='num'>1.73×</td><td class='num'>38.9×</td></tr>
+<tr><td class='num'>1500</td><td class='num'>–</td><td class='num'>4.94×</td><td class='num'>–</td></tr>
+<tr><td class='num'>2000</td><td class='num'>–</td><td class='num'>2.90×</td><td class='num'>–</td></tr>
+<tr><td class='num'>2500</td><td class='num'>–</td><td class='num'>–</td><td class='num'>–</td></tr>
+</table>
+<h3>4.3 Memory</h3>
+
+<p>Table 9 and Figure 3 show the peak working set. Every process has a runtime baseline that dominates at small <i>n</i>: 4.3 MiB for C, 10.8 MiB for Python and 41.8 MiB for Java.
+Above the baseline, C needs 7.8–8.0 bytes per matrix element at <i>n</i> ≥ 1000 (Table 10), i.e. exactly the 8 bytes of array storage per element of A, B and C.
+Java needs 8.2–12.9 bytes per element for <i>n</i> = 500–1000 (close to 8, plus its larger baseline; below that the net amount is too small to separate from baseline noise). At <i>n</i> = 1500 and 2000 its peak is the same, 136 MiB (14.7 and 8.3 bytes per element): the JVM grows its heap in steps,
+so the working set of the JVM does not track live data exactly; I did not investigate this further. Python needs 40.7 bytes per element (40.4–41.4), about five times C: each element is an 8-byte pointer to a separate <code>float</code> object of 24 bytes (<code>sys.getsizeof(1.0)</code>),
+and the figure is consistent with the allocator rounding that object up to 32 bytes (8 + 32 = 40) [6], although I did not verify the rounding in the interpreter source.
+As a result Python overtakes Java in total memory between <i>n</i> = 500 (40 vs 48 MiB) and 700 (67 vs 54 MiB), and at <i>n</i> = 1000 it uses 127 MiB against 66 (Java) and 27 (C).</p>
+
+<table>
+<caption>Table 9. Peak working set of the process (MiB): median over launches (min–max when more than one launch). Last column: array storage of the three matrices at 8 bytes per element.</caption>
+<tr><th class='num'>n</th><th class='num'>Python</th><th class='num'>Java</th><th class='num'>C</th><th class='num'>24<i>n</i>² bytes</th></tr>
+<tr><td class='num'>10</td><td class='num'>10.8 (10.8–10.9)</td><td class='num'>41.8 (41.7–41.8)</td><td class='num'>4.3 (4.3–4.3)</td><td class='num'>0.00</td></tr>
+<tr><td class='num'>20</td><td class='num'>10.9 (10.9–10.9)</td><td class='num'>42.1 (41.9–42.2)</td><td class='num'>4.3 (4.3–4.3)</td><td class='num'>0.01</td></tr>
+<tr><td class='num'>50</td><td class='num'>11.1 (11.1–11.2)</td><td class='num'>42.1 (42.1–43.0)</td><td class='num'>4.3 (4.3–4.3)</td><td class='num'>0.06</td></tr>
+<tr><td class='num'>100</td><td class='num'>12.0 (12.0–12.0)</td><td class='num'>42.1 (42.0–42.1)</td><td class='num'>4.3 (4.3–4.3)</td><td class='num'>0.23</td></tr>
+<tr><td class='num'>200</td><td class='num'>15.6 (15.5–15.6)</td><td class='num'>42.7 (42.7–42.8)</td><td class='num'>5.0 (5.0–5.0)</td><td class='num'>0.92</td></tr>
+<tr><td class='num'>300</td><td class='num'>21.5 (21.5–21.5)</td><td class='num'>45.1 (44.2–45.1)</td><td class='num'>6.1 (6.1–6.1)</td><td class='num'>2.06</td></tr>
+<tr><td class='num'>500</td><td class='num'>40.0 (39.9–40.0)</td><td class='num'>48.2 (48.0–48.2)</td><td class='num'>9.6 (9.5–9.6)</td><td class='num'>5.72</td></tr>
+<tr><td class='num'>700</td><td class='num'>67.4</td><td class='num'>53.8 (53.8–53.8)</td><td class='num'>15.0 (15.0–15.0)</td><td class='num'>11.22</td></tr>
+<tr><td class='num'>1000</td><td class='num'>126.9</td><td class='num'>65.7 (65.6–65.8)</td><td class='num'>26.7 (26.7–26.7)</td><td class='num'>22.89</td></tr>
+<tr><td class='num'>1500</td><td class='num'>–</td><td class='num'>136.4</td><td class='num'>55.3 (55.3–55.3)</td><td class='num'>51.50</td></tr>
+<tr><td class='num'>2000</td><td class='num'>–</td><td class='num'>136.2</td><td class='num'>95.4 (95.4–95.4)</td><td class='num'>91.55</td></tr>
+<tr><td class='num'>2500</td><td class='num'>–</td><td class='num'>–</td><td class='num'>147.0</td><td class='num'>143.05</td></tr>
+</table>
+<figure><img src='../results/figures/fig3_memory.png' style='width:100%'><figcaption>Figure 3. Peak working set of the process against matrix size (log-log).</figcaption></figure>
+<table>
+<caption>Table 10. Memory beyond the baseline per matrix element: (peak − baseline) ÷ (3<i>n</i>²). Array storage alone would be 8.</caption>
+<tr><th class=''>Language</th><th class='num'>Baseline at n = 10 (MiB)</th><th class='num'>Median net bytes per matrix element, n ≥ 300</th><th class='num'>Range</th></tr>
+<tr><td class=''>Python</td><td class='num'>10.8</td><td class='num'>40.7</td><td class='num'>40.4–41.4</td></tr>
+<tr><td class=''>Java</td><td class='num'>41.8</td><td class='num'>8.7</td><td class='num'>8.3–14.7</td></tr>
+<tr><td class=''>C</td><td class='num'>4.3</td><td class='num'>7.8</td><td class='num'>7.1–8.0</td></tr>
+</table>
+<h3>4.4 Limits, timeouts and failures</h3>
+
+<p>The time budget was the only limit that bound. The largest size that met it was <i>n</i> = 1000 for Python (92.4 s per multiplication), 2000 for Java (82.3 s) and 2500 for C (68.8 s).
+One larger size was attempted per language (1500, 2500 and 3000); in each case a single multiplication ran past 120 s and the launch was stopped (Table 12). These are timeouts at the limit; their true times are unknown. For orientation only,
+extrapolating the Python time per iteration at <i>n</i> = 1000 to <i>n</i> = 1500 would give about 312 s, which is an extrapolation, not a measurement.
+No launch came close to the 4 GiB memory budget (the largest peak working set of any launch was 226 MiB), so there were no memory failures.
+A fourth launch also failed: launch 61 (second launch of Java at <i>n</i> = 1500) completed two batches (26.3 s per multiplication for the measured one) and then produced no output for more than 120 s; it was stopped after 824 s of wall time.
+I do not know why (a system suspend or heavy foreground activity are possible); its batches stay in the raw file but are excluded from every statistic, which is why Java at <i>n</i> = 1500 has a single launch.</p>
+
+<table>
+<caption>Table 11. Feasibility limits of the main comparison.</caption>
+<tr><th class=''>Language</th><th class='num'>Largest size meeting all limits</th><th class='num'>Largest size attempted</th><th class='num'>Limit per multiplication</th></tr>
+<tr><td class=''>Python</td><td class='num'>1000</td><td class='num'>1500</td><td class='num'>120 s</td></tr>
+<tr><td class=''>Java</td><td class='num'>2000</td><td class='num'>2500</td><td class='num'>120 s</td></tr>
+<tr><td class=''>C</td><td class='num'>2500</td><td class='num'>3000</td><td class='num'>120 s</td></tr>
+</table><table>
+<caption>Table 12. Launches that did not complete (results, not omissions): killed because a single multiplication exceeded the limit.</caption>
+<tr><th class=''>Language</th><th class='num'>n</th><th class=''>Outcome</th><th class='num'>Wall time until stopped</th><th class='num'>Batches completed before</th></tr>
+<tr><td class=''>Python</td><td class='num'>1500</td><td class=''>timeout_multiplication</td><td class='num'>121 s</td><td class='num'>0</td></tr>
+<tr><td class=''>Java</td><td class='num'>2500</td><td class=''>timeout_multiplication</td><td class='num'>121 s</td><td class='num'>0</td></tr>
+<tr><td class=''>C</td><td class='num'>3000</td><td class=''>timeout_multiplication</td><td class='num'>120 s</td><td class='num'>0</td></tr>
+<tr><td class=''>Java</td><td class='num'>1500</td><td class=''>timeout_multiplication</td><td class='num'>824 s</td><td class='num'>2</td></tr>
+</table>
+<h3>4.5 Warm-up and variability</h3>
+
+<p>Warm-up matters only for Java (Figure 4, <code>results/tables/warmup.csv</code>). Its first batch is 23× slower than the measured median at <i>n</i> = 10, 3.4× at <i>n</i> = 100 and about 1× from <i>n</i> ≈ 300 on, which is why
+5 warm-up batches were used for small sizes and why the first (calibration) batches are excluded from all statistics. For Python and C the first batch is within about ±30 % of the median at every size. Within a launch the times also drift:
+at <i>n</i> = 100 the C batches of the first launch become about 46 % slower between the first batches and the last measured ones (Figure 4), which is consistent with the CPU leaving its turbo frequency, but I did not record the clock frequency, so this is an interpretation. Pooling launches that ran at different times is meant to average over this.</p>
+<p>The interquartile range of the pooled batches is 10 % of the median for the typical configuration (range 0.2–36 %; Appendix A). The widest ranges come from two launches that started while the machine
+was fully busy with something else (background CPU 100 % in the 0.5 s before the launch, <code>background_cpu_percent</code>): launch 24 (C, <i>n</i> = 700) was 51 % slower than the other launches of that configuration; launch 62 (C, <i>n</i> = 1500) was 31 % slower than the other launches of that configuration. They were kept (no observation was removed), and the medians stay close to those of the undisturbed launches because the other launches outnumber them.
+The median background load before launches was 13 % of all logical processors.</p>
+
+<figure><img src='../results/figures/fig5_warmup.png' style='width:100%'><figcaption>Figure 4. Batch times of the first launch of selected configurations, relative to that launch’s measured median (log scale): open circles = calibration batches, grey = warm-up batches, filled = measured batches.</figcaption></figure>
+<h2>5. Discussion</h2>
+
+<p><b>Answer to the research question.</b> Within the tested range, the time of one multiplication grows close to <i>n</i>³ but a little faster, in all three languages, and the language mainly changes the constant:
+about 73× between Python and C, and a factor of 1.2–1.7 between Java and C for <i>n</i> ≤ 1000, after the JIT has warmed up.
+Memory beyond a fixed runtime baseline grows with <i>n</i>² and the per-element cost is where the languages differ: about 7.9 bytes in C and 8.6 in Java, about 40.7 in Python.</p>
+<table>
+<caption>Table 13. Predictions against results.</caption>
+<tr><th class=''>Prediction (Section 1)</th><th class=''>Outcome</th><th class=''>Evidence</th></tr>
+<tr><td class=''>P1: time ∝ <i>n</i>³, <i>t</i>/<i>n</i>³ flat</td><td class=''><span class='warn'>partly</span></td><td class=''>Straight lines on log-log from 10 to 1000, but slopes 3.18 / 3.39 / 3.23 (Python / Java / C), all CIs above 3, and <i>t</i>/<i>n</i>³ grows 8× in C between <i>n</i> = 10 and 2500.</td></tr>
+<tr><td class=''>P2: Python ≫ Java ≳ C</td><td class=''><span class='pass'>confirmed</span></td><td class=''>Python ≈ 73× C; Java 1.2–1.7× C up to <i>n</i> = 1000, but 4.9× at 1500.</td></tr>
+<tr><td class=''>P3: <i>t</i>/<i>n</i>³ rises once B exceeds L2 (<i>n</i> ≈ 400) and L3 (<i>n</i> ≈ 1000)</td><td class=''><span class='warn'>partly</span></td><td class=''>The rise is real in all three languages, but it is gradual from small <i>n</i> and the steep step is at <i>n</i> ≈ 1500–2000 for C and 1000–1500 for Java, not at the cache capacities I predicted.</td></tr>
+<tr><td class=''>P4: memory ≈ 24<i>n</i>² (C), + larger JVM baseline (Java), much larger per element (Python)</td><td class=''><span class='pass'>confirmed</span></td><td class=''>C 7.9 B/element; Java 8.6 B/element + 42 MiB baseline (heap steps at 1500); Python 40.7 B/element.</td></tr>
+</table>
+<p><b>Interpreting the memory-related slowdown (hypotheses, not tested).</b> In the <i>i-j-k</i> order every inner iteration reads one element of B from a different row, so the loop touches <i>n</i> cache lines and <i>n</i> memory pages per column [2].
+The gradual rise of <i>t</i>/<i>n</i>³ from small <i>n</i> and the steps at large <i>n</i> fit that picture, but my data do not identify the exact mechanism: the step comes later than the L3 capacity for C, and I had no hardware counters on this machine
+(<code>perf</code>, which the course material uses [10], is Linux-only). One possible explanation for the earlier and larger step in Java is its <code>double[n][n]</code> layout, which adds a row-header and row-pointer access to every iteration; the C program, by contrast, uses one contiguous block.
+Testing this would need a Java version with a flat array (and a C version with separate rows), which I did not run. The same applies to compiler flags: only <code>-O2</code> was measured, and <code>-O3</code> may reorder loops [5].</p>
+<p><b>Other points.</b> The JVM’s start is expensive (first batch 23× slower at <i>n</i> = 10), so Java’s steady state, which is what Table 4 reports, is not what a short program would see.
+The Python result is for the literal textbook loop on CPython 3.12.0; libraries such as NumPy or other implementations would change the constant by orders of magnitude, but that is a different experiment.</p>
+
+<h2>6. Limitations</h2>
+
+<ul>
+<li><b>One machine and one set of tools.</b> A 15 W-class laptop CPU with turbo, Windows 11, CPython 3.12.0, OpenJDK 25.0.2 with default JIT/GC, GCC 16.2.0 at <code>-O2</code>. Other CPUs, operating systems, compilers or runtimes may give different constants and different step positions.</li>
+<li><b>Uncontrolled machine state.</b> The laptop was on AC power in the Balanced plan, but clock frequency and thermal state were not controlled or recorded, and the machine was not completely idle (background load is recorded for every launch). Two launches were visibly disturbed (Section 4.5).</li>
+<li><b>Few launches at large sizes.</b> The most expensive configurations have one launch (Python ≥ 700, Java ≥ 1500, C 2500), so launch-to-launch variation is unknown there; their IQR describes only the batches inside one process.</li>
+<li><b>Memory metric.</b> Peak working set includes the language runtime and depends on how the JVM and allocators grow their memory; it is not live data or array size, and one number per launch says nothing about when the peak occurs.</li>
+<li><b>Kernel time only, one input type.</b> Start-up, input and output are excluded; inputs are uniform in [0, 1) only; only square matrices were used.</li>
+<li><b>No hardware counters.</b> Explanations of the large-<i>n</i> behaviour are hypotheses.</li>
+<li><b>Linux path untested.</b> The driver also contains a Linux memory-measurement branch that was not run.</li>
+</ul>
+
+<h2>7. Conclusions</h2>
+
+<ul>
+<li>For the tested implementations, runtime grows roughly as <i>n</i>³ with a growing per-operation cost (slope 3.18–3.39 over <i>n</i> = 100–1000); the per-operation cost rises sharply in C and Java at <i>n</i> ≈ 1500–2000.</li>
+<li>Python is about 73× slower than C at <i>n</i> ≥ 100; Java is 1.2–1.7× slower than C up to <i>n</i> = 1000 and 4.9× slower at 1500.</li>
+<li>Memory: ≈ 7.9 bytes per element in C, ≈ 8.6 in Java and ≈ 40.7 in Python, on top of baselines of 4, 42 and 11 MiB (C, Java, Python).</li>
+<li><b>Unresolved:</b> why the steep step occurs where it does and why it is larger and earlier in Java; this needs layout variants and hardware counters, which were out of scope. No general claim that one language is faster than another follows from this study.</li>
+</ul>
+
+
+<h2>8. Use of generative AI</h2>
+<p>In line with the course policy, the use of AI is disclosed here. <b>Tool:</b> Claude Code (Anthropic). <b>Purpose and affected parts:</b> planning the experimental design; writing the benchmark programs, the driver, the test and analysis scripts and the build scripts;
+debugging the toolchain set-up on Windows; drafting the text of this report; checking that cited sources exist and say what they are cited for. <b>What the AI did not do:</b> no number in this report was produced or estimated by the AI; every result comes from running
+the published code on the author’s machine, and the raw measurements are in the repository. The author is responsible for understanding the code, for the measurements and for the conclusions.</p>
+
+<h2>References</h2><ol class='refs'><li>T. H. Cormen, C. E. Leiserson, R. L. Rivest and C. Stein, <i>Introduction to Algorithms</i>, 4th ed. Cambridge, MA, USA: MIT Press, 2022 (matrix multiplication, Θ(<i>n</i>³) for the direct method).</li><li>U. Drepper, “What every programmer should know about memory,” Red Hat, Inc., Nov. 21, 2007. [Online]. Available: https://akkadia.org/drepper/cpumemory.pdf (Sec. 6.2.1, cache access in matrix multiplication).</li><li>N. J. Higham, <i>Accuracy and Stability of Numerical Algorithms</i>, 2nd ed. Philadelphia, PA, USA: SIAM, 2002 (ch. 3, error analysis of inner products).</li><li>OpenJDK, “Code Tools: jmh – Java Microbenchmark Harness.” [Online]. Available: https://openjdk.org/projects/code-tools/jmh (accessed Oct. 17, 2026).</li><li>Free Software Foundation, “Options That Control Optimization,” <i>GCC manual</i>. [Online]. Available: https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html (accessed Oct. 17, 2026).</li><li>Python Software Foundation, “Memory Management,” <i>Python/C API Reference Manual</i>. [Online]. Available: https://docs.python.org/3/c-api/memory.html (accessed Oct. 17, 2026).</li><li>Python Software Foundation, “time — Time access and conversions,” <i>The Python Standard Library</i>. [Online]. Available: https://docs.python.org/3/library/time.html (accessed Oct. 17, 2026).</li><li>Microsoft, “Acquiring high-resolution time stamps,” Win32 apps documentation. [Online]. Available: https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps (accessed Oct. 17, 2026).</li><li>Microsoft, “PROCESS_MEMORY_COUNTERS_EX structure (psapi.h),” Win32 apps documentation. [Online]. Available: https://learn.microsoft.com/en-us/windows/win32/api/psapi/ns-psapi-process_memory_counters_ex (accessed Oct. 17, 2026).</li><li>Universidad de Las Palmas de Gran Canaria, Big Data course 2026–2027, <i>Individual Assignments: Matrix Multiplication</i> and <i>Benchmarking Tools</i> (course material, campus virtual).</li></ol>
+<h2>Appendix A. Full results of the main comparison</h2>
+<table>
+<caption>Table A1. Every tested configuration of the main comparison: time per multiplication (all measured batches pooled).</caption>
+<tr><th class=''>Lang.</th><th class='num'>n</th><th class='num'>Launches</th><th class='num'>Samples</th><th class='num'>Mults per batch</th><th class='num'>Median</th><th class='num'>Q1</th><th class='num'>Q3</th><th class='num'>IQR/med (%)</th><th class='num'>Min</th><th class='num'>Max</th><th class='num'>Launch spread (%)</th></tr>
+<tr><td class=''>Python</td><td class='num'>10</td><td class='num'>3</td><td class='num'>45</td><td class='num'>4096</td><td class='num'>67.6 µs</td><td class='num'>63.3 µs</td><td class='num'>74.3 µs</td><td class='num'>16.2</td><td class='num'>55.4 µs</td><td class='num'>90.8 µs</td><td class='num'>20.4</td></tr>
+<tr><td class=''>Python</td><td class='num'>20</td><td class='num'>3</td><td class='num'>45</td><td class='num'>512</td><td class='num'>509 µs</td><td class='num'>484 µs</td><td class='num'>527 µs</td><td class='num'>8.3</td><td class='num'>449 µs</td><td class='num'>595 µs</td><td class='num'>3.4</td></tr>
+<tr><td class=''>Python</td><td class='num'>50</td><td class='num'>3</td><td class='num'>45</td><td class='num'>32</td><td class='num'>7.82 ms</td><td class='num'>7.16 ms</td><td class='num'>8.72 ms</td><td class='num'>20.0</td><td class='num'>6.01 ms</td><td class='num'>19.5 ms</td><td class='num'>25.8</td></tr>
+<tr><td class=''>Python</td><td class='num'>100</td><td class='num'>3</td><td class='num'>45</td><td class='num'>8</td><td class='num'>62.5 ms</td><td class='num'>58.7 ms</td><td class='num'>65.2 ms</td><td class='num'>10.3</td><td class='num'>54.1 ms</td><td class='num'>76.1 ms</td><td class='num'>9.1</td></tr>
+<tr><td class=''>Python</td><td class='num'>200</td><td class='num'>3</td><td class='num'>30</td><td class='num'>1</td><td class='num'>526 ms</td><td class='num'>507 ms</td><td class='num'>563 ms</td><td class='num'>10.7</td><td class='num'>475 ms</td><td class='num'>626 ms</td><td class='num'>13.4</td></tr>
+<tr><td class=''>Python</td><td class='num'>300</td><td class='num'>3</td><td class='num'>30</td><td class='num'>1</td><td class='num'>1.91 s</td><td class='num'>1.85 s</td><td class='num'>2 s</td><td class='num'>8.0</td><td class='num'>1.76 s</td><td class='num'>8.06 s</td><td class='num'>9.9</td></tr>
+<tr><td class=''>Python</td><td class='num'>500</td><td class='num'>2</td><td class='num'>14</td><td class='num'>1</td><td class='num'>9.86 s</td><td class='num'>9.63 s</td><td class='num'>10.1 s</td><td class='num'>4.7</td><td class='num'>9.39 s</td><td class='num'>11.2 s</td><td class='num'>5.2</td></tr>
+<tr><td class=''>Python</td><td class='num'>700</td><td class='num'>1</td><td class='num'>5</td><td class='num'>1</td><td class='num'>29.3 s</td><td class='num'>29.1 s</td><td class='num'>30 s</td><td class='num'>3.1</td><td class='num'>29 s</td><td class='num'>35.4 s</td><td class='num'>–</td></tr>
+<tr><td class=''>Python</td><td class='num'>1000</td><td class='num'>1</td><td class='num'>5</td><td class='num'>1</td><td class='num'>92.4 s</td><td class='num'>92.2 s</td><td class='num'>92.9 s</td><td class='num'>0.8</td><td class='num'>91.8 s</td><td class='num'>95 s</td><td class='num'>–</td></tr>
+<tr><td class=''>Java</td><td class='num'>10</td><td class='num'>3</td><td class='num'>45</td><td class='num'>524288</td><td class='num'>930 ns</td><td class='num'>869 ns</td><td class='num'>976 ns</td><td class='num'>11.5</td><td class='num'>822 ns</td><td class='num'>1.15 µs</td><td class='num'>7.9</td></tr>
+<tr><td class=''>Java</td><td class='num'>20</td><td class='num'>3</td><td class='num'>45</td><td class='num'>65536</td><td class='num'>7.09 µs</td><td class='num'>6.73 µs</td><td class='num'>7.74 µs</td><td class='num'>14.3</td><td class='num'>6.34 µs</td><td class='num'>9.21 µs</td><td class='num'>11.9</td></tr>
+<tr><td class=''>Java</td><td class='num'>50</td><td class='num'>3</td><td class='num'>45</td><td class='num'>4096</td><td class='num'>105 µs</td><td class='num'>102 µs</td><td class='num'>108 µs</td><td class='num'>6.0</td><td class='num'>95.6 µs</td><td class='num'>146 µs</td><td class='num'>6.0</td></tr>
+<tr><td class=''>Java</td><td class='num'>100</td><td class='num'>3</td><td class='num'>45</td><td class='num'>256</td><td class='num'>965 µs</td><td class='num'>935 µs</td><td class='num'>1.03 ms</td><td class='num'>10.0</td><td class='num'>870 µs</td><td class='num'>1.29 ms</td><td class='num'>12.1</td></tr>
+<tr><td class=''>Java</td><td class='num'>200</td><td class='num'>3</td><td class='num'>45</td><td class='num'>32</td><td class='num'>8.6 ms</td><td class='num'>8.35 ms</td><td class='num'>8.89 ms</td><td class='num'>6.3</td><td class='num'>7.97 ms</td><td class='num'>10.4 ms</td><td class='num'>2.4</td></tr>
+<tr><td class=''>Java</td><td class='num'>300</td><td class='num'>3</td><td class='num'>45</td><td class='num'>8</td><td class='num'>31 ms</td><td class='num'>30 ms</td><td class='num'>32.7 ms</td><td class='num'>8.7</td><td class='num'>27.7 ms</td><td class='num'>42.7 ms</td><td class='num'>12.4</td></tr>
+<tr><td class=''>Java</td><td class='num'>500</td><td class='num'>3</td><td class='num'>45</td><td class='num'>2</td><td class='num'>200 ms</td><td class='num'>189 ms</td><td class='num'>206 ms</td><td class='num'>8.6</td><td class='num'>183 ms</td><td class='num'>265 ms</td><td class='num'>6.4</td></tr>
+<tr><td class=''>Java</td><td class='num'>700</td><td class='num'>3</td><td class='num'>30</td><td class='num'>1</td><td class='num'>618 ms</td><td class='num'>589 ms</td><td class='num'>693 ms</td><td class='num'>16.7</td><td class='num'>548 ms</td><td class='num'>3.18 s</td><td class='num'>17.3</td></tr>
+<tr><td class=''>Java</td><td class='num'>1000</td><td class='num'>3</td><td class='num'>30</td><td class='num'>1</td><td class='num'>2.38 s</td><td class='num'>2.32 s</td><td class='num'>2.48 s</td><td class='num'>6.4</td><td class='num'>2.27 s</td><td class='num'>2.68 s</td><td class='num'>8.4</td></tr>
+<tr><td class=''>Java</td><td class='num'>1500</td><td class='num'>1</td><td class='num'>5</td><td class='num'>1</td><td class='num'>26.8 s</td><td class='num'>26.8 s</td><td class='num'>26.8 s</td><td class='num'>0.2</td><td class='num'>26.4 s</td><td class='num'>26.9 s</td><td class='num'>–</td></tr>
+<tr><td class=''>Java</td><td class='num'>2000</td><td class='num'>1</td><td class='num'>5</td><td class='num'>1</td><td class='num'>82.3 s</td><td class='num'>81.9 s</td><td class='num'>82.8 s</td><td class='num'>1.0</td><td class='num'>81.4 s</td><td class='num'>93 s</td><td class='num'>–</td></tr>
+<tr><td class=''>C</td><td class='num'>10</td><td class='num'>3</td><td class='num'>45</td><td class='num'>524288</td><td class='num'>537 ns</td><td class='num'>504 ns</td><td class='num'>565 ns</td><td class='num'>11.3</td><td class='num'>472 ns</td><td class='num'>842 ns</td><td class='num'>11.3</td></tr>
+<tr><td class=''>C</td><td class='num'>20</td><td class='num'>3</td><td class='num'>45</td><td class='num'>65536</td><td class='num'>4.34 µs</td><td class='num'>4.14 µs</td><td class='num'>4.59 µs</td><td class='num'>10.5</td><td class='num'>3.47 µs</td><td class='num'>5.69 µs</td><td class='num'>6.8</td></tr>
+<tr><td class=''>C</td><td class='num'>50</td><td class='num'>3</td><td class='num'>45</td><td class='num'>4096</td><td class='num'>85.8 µs</td><td class='num'>81.5 µs</td><td class='num'>92.1 µs</td><td class='num'>12.3</td><td class='num'>74.6 µs</td><td class='num'>271 µs</td><td class='num'>12.0</td></tr>
+<tr><td class=''>C</td><td class='num'>100</td><td class='num'>3</td><td class='num'>45</td><td class='num'>512</td><td class='num'>802 µs</td><td class='num'>757 µs</td><td class='num'>975 µs</td><td class='num'>27.1</td><td class='num'>717 µs</td><td class='num'>2.01 ms</td><td class='num'>25.2</td></tr>
+<tr><td class=''>C</td><td class='num'>200</td><td class='num'>3</td><td class='num'>45</td><td class='num'>32</td><td class='num'>7.16 ms</td><td class='num'>6.94 ms</td><td class='num'>7.62 ms</td><td class='num'>9.6</td><td class='num'>6.41 ms</td><td class='num'>11.5 ms</td><td class='num'>14.3</td></tr>
+<tr><td class=''>C</td><td class='num'>300</td><td class='num'>3</td><td class='num'>45</td><td class='num'>16</td><td class='num'>26.3 ms</td><td class='num'>25.3 ms</td><td class='num'>27.9 ms</td><td class='num'>9.7</td><td class='num'>23.3 ms</td><td class='num'>34.6 ms</td><td class='num'>13.3</td></tr>
+<tr><td class=''>C</td><td class='num'>500</td><td class='num'>3</td><td class='num'>45</td><td class='num'>2</td><td class='num'>133 ms</td><td class='num'>130 ms</td><td class='num'>141 ms</td><td class='num'>8.2</td><td class='num'>121 ms</td><td class='num'>200 ms</td><td class='num'>10.2</td></tr>
+<tr><td class=''>C</td><td class='num'>700</td><td class='num'>3</td><td class='num'>30</td><td class='num'>1</td><td class='num'>408 ms</td><td class='num'>387 ms</td><td class='num'>534 ms</td><td class='num'>36.0</td><td class='num'>341 ms</td><td class='num'>715 ms</td><td class='num'>56.5</td></tr>
+<tr><td class=''>C</td><td class='num'>1000</td><td class='num'>3</td><td class='num'>30</td><td class='num'>1</td><td class='num'>1.37 s</td><td class='num'>1.35 s</td><td class='num'>1.39 s</td><td class='num'>3.3</td><td class='num'>1.32 s</td><td class='num'>1.47 s</td><td class='num'>1.0</td></tr>
+<tr><td class=''>C</td><td class='num'>1500</td><td class='num'>3</td><td class='num'>21</td><td class='num'>1</td><td class='num'>5.43 s</td><td class='num'>5.34 s</td><td class='num'>6.64 s</td><td class='num'>24.0</td><td class='num'>5.26 s</td><td class='num'>11.5 s</td><td class='num'>31.7</td></tr>
+<tr><td class=''>C</td><td class='num'>2000</td><td class='num'>2</td><td class='num'>10</td><td class='num'>1</td><td class='num'>28.4 s</td><td class='num'>27.2 s</td><td class='num'>30.2 s</td><td class='num'>10.6</td><td class='num'>26.9 s</td><td class='num'>31 s</td><td class='num'>12.1</td></tr>
+<tr><td class=''>C</td><td class='num'>2500</td><td class='num'>1</td><td class='num'>5</td><td class='num'>1</td><td class='num'>68.8 s</td><td class='num'>68.4 s</td><td class='num'>68.9 s</td><td class='num'>0.6</td><td class='num'>68.1 s</td><td class='num'>69 s</td><td class='num'>–</td></tr>
+</table>
+<h2>Appendix B. Reproducibility materials</h2>
+
+<p>Everything is in the repository — (GitHub repository URL to be inserted before submission) — and in <code>Assignment01_Choukri_Materials.zip</code>: source code (<code>src/</code>), the declared protocol (<code>config/experiment.json</code>), the build/test/benchmark/analysis scripts (<code>scripts/</code>),
+raw measurements (<code>results/raw_samples.csv</code>, one row per timed batch including warm-up; <code>results/launches.csv</code>, one row per process with status and peak memory), the generated tables and figures, the environment record and the correctness results.
+The shared inputs are not stored (up to 144 MB for the largest pair) but are regenerated bit-for-bit by <code>scripts/generate_inputs.py</code> and verified against SHA-256 hashes (<code>--check</code>). The <code>README.md</code> lists the exact build and run commands and the tool versions.
+No material from earlier work is reused; the only external material is the course’s benchmarking guidance [10].</p>
+</body></html>
