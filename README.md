@@ -3,7 +3,7 @@
 | Assignment | Folder | Status |
 |---|---|---|
 | 1. Basic implementations in Python, Java and C | [`assignment1/`](assignment1/) | done – see its README and `report/` |
-| 2. Optimised approaches and sparse matrices | – | not started |
+| 2. Optimised approaches and sparse matrices | [`assignment2/`](assignment2/) | done – see its README and `report/` |
 | 3. Parallel multiplication | – | not started |
 | 4. Distributed multiplication | – | not started |
 

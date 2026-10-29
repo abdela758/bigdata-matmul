@@ -1,0 +1,4 @@
+method,largest_feasible_n,largest_attempted_n,failed_sizes
+ijk,2000,3000,2500 3000
+ikj,3000,3000,
+blocked,3000,3000,

@@ -1,0 +1,116 @@
+test,method,n,passed,detail
+identity,ijk,1,1,bit-exact
+identity,ikj,1,1,bit-exact
+identity,blocked,1,1,bit-exact
+identity,blocked32,1,1,bit-exact
+identity_same_as_ijk,all,1,1,bit-identical to the baseline
+zero,ijk,1,1,bit-exact
+zero,ikj,1,1,bit-exact
+zero,blocked,1,1,bit-exact
+zero,blocked32,1,1,bit-exact
+zero_same_as_ijk,all,1,1,bit-identical to the baseline
+identity,ijk,7,1,bit-exact
+identity,ikj,7,1,bit-exact
+identity,blocked,7,1,bit-exact
+identity,blocked32,7,1,bit-exact
+identity_same_as_ijk,all,7,1,bit-identical to the baseline
+zero,ijk,7,1,bit-exact
+zero,ikj,7,1,bit-exact
+zero,blocked,7,1,bit-exact
+zero,blocked32,7,1,bit-exact
+zero_same_as_ijk,all,7,1,bit-identical to the baseline
+identity,ijk,33,1,bit-exact
+identity,ikj,33,1,bit-exact
+identity,blocked,33,1,bit-exact
+identity,blocked32,33,1,bit-exact
+identity_same_as_ijk,all,33,1,bit-identical to the baseline
+zero,ijk,33,1,bit-exact
+zero,ikj,33,1,bit-exact
+zero,blocked,33,1,bit-exact
+zero,blocked32,33,1,bit-exact
+zero_same_as_ijk,all,33,1,bit-identical to the baseline
+random_dense,ijk,10,1,max |C - NumPy| = 6.66e-16
+random_dense,ikj,10,1,max |C - NumPy| = 6.66e-16
+random_dense,blocked,10,1,max |C - NumPy| = 6.66e-16
+random_dense,blocked32,10,1,max |C - NumPy| = 6.66e-16
+random_dense_same_as_ijk,all,10,1,bit-identical to the baseline
+random_dense,ijk,63,1,max |C - NumPy| = 3.11e-15
+random_dense,ikj,63,1,max |C - NumPy| = 3.11e-15
+random_dense,blocked,63,1,max |C - NumPy| = 3.11e-15
+random_dense,blocked32,63,1,max |C - NumPy| = 3.11e-15
+random_dense_same_as_ijk,all,63,1,bit-identical to the baseline
+random_dense,ijk,64,1,max |C - NumPy| = 3.55e-15
+random_dense,ikj,64,1,max |C - NumPy| = 3.55e-15
+random_dense,blocked,64,1,max |C - NumPy| = 3.55e-15
+random_dense,blocked32,64,1,max |C - NumPy| = 3.55e-15
+random_dense_same_as_ijk,all,64,1,bit-identical to the baseline
+random_dense,ijk,65,1,max |C - NumPy| = 3.55e-15
+random_dense,ikj,65,1,max |C - NumPy| = 3.55e-15
+random_dense,blocked,65,1,max |C - NumPy| = 3.55e-15
+random_dense,blocked32,65,1,max |C - NumPy| = 3.55e-15
+random_dense_same_as_ijk,all,65,1,bit-identical to the baseline
+random_dense,ijk,100,1,max |C - NumPy| = 5.33e-15
+random_dense,ikj,100,1,max |C - NumPy| = 5.33e-15
+random_dense,blocked,100,1,max |C - NumPy| = 5.33e-15
+random_dense,blocked32,100,1,max |C - NumPy| = 5.33e-15
+random_dense_same_as_ijk,all,100,1,bit-identical to the baseline
+random_dense,ijk,130,1,max |C - NumPy| = 5.33e-15
+random_dense,ikj,130,1,max |C - NumPy| = 5.33e-15
+random_dense,blocked,130,1,max |C - NumPy| = 5.33e-15
+random_dense,blocked32,130,1,max |C - NumPy| = 5.33e-15
+random_dense_same_as_ijk,all,130,1,bit-identical to the baseline
+random_dense,ijk,300,1,max |C - NumPy| = 1.24e-14
+random_dense,ikj,300,1,max |C - NumPy| = 1.24e-14
+random_dense,blocked,300,1,max |C - NumPy| = 1.24e-14
+random_dense,blocked32,300,1,max |C - NumPy| = 1.24e-14
+random_dense_same_as_ijk,all,300,1,bit-identical to the baseline
+sparse_empty_conversion,csr,50,1,matrix A: C conversion = Python writer
+sparse_empty_conversion,csr,50,1,matrix B: C conversion = Python writer
+sparse_empty,csr,50,1,max |C - NumPy| = 0.00e+00
+sparse_empty_nnz,csr,50,1,"nnz(C) = 0, NumPy = 0"
+sparse_empty_same_as_dense,csr,50,1,bit-identical to dense ijk
+sparse_identity_conversion,csr,60,1,matrix A: C conversion = Python writer
+sparse_identity_conversion,csr,60,1,matrix B: C conversion = Python writer
+sparse_identity,csr,60,1,max |C - NumPy| = 0.00e+00
+sparse_identity_nnz,csr,60,1,"nnz(C) = 721, NumPy = 721"
+sparse_identity_same_as_dense,csr,60,1,bit-identical to dense ijk
+sparse_d0.01_conversion,csr,50,1,matrix A: C conversion = Python writer
+sparse_d0.01_conversion,csr,50,1,matrix B: C conversion = Python writer
+sparse_d0.01,csr,50,1,max |C - NumPy| = 0.00e+00
+sparse_d0.01_nnz,csr,50,1,"nnz(C) = 10, NumPy = 10"
+sparse_d0.01_same_as_dense,csr,50,1,bit-identical to dense ijk
+sparse_d0.1_conversion,csr,50,1,matrix A: C conversion = Python writer
+sparse_d0.1_conversion,csr,50,1,matrix B: C conversion = Python writer
+sparse_d0.1,csr,50,1,max |C - NumPy| = 2.22e-16
+sparse_d0.1_nnz,csr,50,1,"nnz(C) = 1119, NumPy = 1119"
+sparse_d0.1_same_as_dense,csr,50,1,bit-identical to dense ijk
+sparse_d0.5_conversion,csr,50,1,matrix A: C conversion = Python writer
+sparse_d0.5_conversion,csr,50,1,matrix B: C conversion = Python writer
+sparse_d0.5,csr,50,1,max |C - NumPy| = 2.66e-15
+sparse_d0.5_nnz,csr,50,1,"nnz(C) = 2500, NumPy = 2500"
+sparse_d0.5_same_as_dense,csr,50,1,bit-identical to dense ijk
+sparse_d1_conversion,csr,50,1,matrix A: C conversion = Python writer
+sparse_d1_conversion,csr,50,1,matrix B: C conversion = Python writer
+sparse_d1,csr,50,1,max |C - NumPy| = 7.11e-15
+sparse_d1_nnz,csr,50,1,"nnz(C) = 2500, NumPy = 2500"
+sparse_d1_same_as_dense,csr,50,1,bit-identical to dense ijk
+sparse_d0.01_conversion,csr,200,1,matrix A: C conversion = Python writer
+sparse_d0.01_conversion,csr,200,1,matrix B: C conversion = Python writer
+sparse_d0.01,csr,200,1,max |C - NumPy| = 2.78e-17
+sparse_d0.01_nnz,csr,200,1,"nnz(C) = 717, NumPy = 717"
+sparse_d0.01_same_as_dense,csr,200,1,bit-identical to dense ijk
+sparse_d0.1_conversion,csr,200,1,matrix A: C conversion = Python writer
+sparse_d0.1_conversion,csr,200,1,matrix B: C conversion = Python writer
+sparse_d0.1,csr,200,1,max |C - NumPy| = 8.88e-16
+sparse_d0.1_nnz,csr,200,1,"nnz(C) = 34792, NumPy = 34792"
+sparse_d0.1_same_as_dense,csr,200,1,bit-identical to dense ijk
+sparse_d0.5_conversion,csr,200,1,matrix A: C conversion = Python writer
+sparse_d0.5_conversion,csr,200,1,matrix B: C conversion = Python writer
+sparse_d0.5,csr,200,1,max |C - NumPy| = 7.11e-15
+sparse_d0.5_nnz,csr,200,1,"nnz(C) = 40000, NumPy = 40000"
+sparse_d0.5_same_as_dense,csr,200,1,bit-identical to dense ijk
+sparse_d1_conversion,csr,200,1,matrix A: C conversion = Python writer
+sparse_d1_conversion,csr,200,1,matrix B: C conversion = Python writer
+sparse_d1,csr,200,1,max |C - NumPy| = 2.84e-14
+sparse_d1_nnz,csr,200,1,"nnz(C) = 40000, NumPy = 40000"
+sparse_d1_same_as_dense,csr,200,1,bit-identical to dense ijk

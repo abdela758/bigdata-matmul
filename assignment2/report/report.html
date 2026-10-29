@@ -1,0 +1,273 @@
+<!doctype html><html lang='en'><head><meta charset='utf-8'><title>Optimised and Sparse Matrix Multiplication in C</title><style>
+@page { size: A4; margin: 17mm 16mm 18mm 16mm;
+        @bottom-center { content: counter(page) " / " counter(pages); font: 8.5pt 'Segoe UI', Arial, sans-serif; color: #6b6a66; } }
+:root { --ink:#0b0b0b; --ink2:#3d3c39; --muted:#6b6a66; --line:#d6d5ce; --head:#eef3f9; --accent:#184f95; }
+* { box-sizing: border-box; }
+body { font: 10pt/1.42 'Segoe UI', Calibri, Arial, sans-serif; color: var(--ink); margin: 0; text-align: justify; hyphens: auto; }
+h1 { font-size: 19pt; line-height: 1.2; margin: 0 0 4pt; text-align: left; }
+h2 { font-size: 13pt; margin: 17pt 0 5pt; color: var(--accent); text-align: left; break-after: avoid; }
+h3 { font-size: 10.5pt; margin: 11pt 0 3pt; text-align: left; break-after: avoid; }
+p { margin: 0 0 6pt; orphans: 3; widows: 3; }
+.meta { color: var(--ink2); margin-bottom: 8pt; text-align: left; font-size: 9.5pt; }
+.abstract { border-left: 3px solid var(--accent); padding: 2pt 0 2pt 9pt; margin: 8pt 0 6pt; background: #f7f9fc; }
+table { border-collapse: collapse; width: 100%; margin: 4pt 0 9pt; font-size: 8.3pt; font-variant-numeric: tabular-nums; break-inside: avoid; }
+th { background: var(--head); text-align: left; padding: 3pt 5pt; border-bottom: 1.2px solid var(--accent); }
+td { padding: 2.2pt 5pt; border-bottom: 0.6px solid var(--line); vertical-align: top; text-align: left; hyphens: manual; }
+td.num, th.num { text-align: right; }
+td.num { white-space: nowrap; }
+caption { caption-side: top; text-align: left; font-weight: 600; font-size: 8.8pt; margin-bottom: 3pt; color: var(--ink2); }
+figure { margin: 7pt 0 9pt; break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; }
+figcaption { font-size: 8.8pt; color: var(--ink2); text-align: left; margin-top: 3pt; }
+code { font: 8.6pt Consolas, 'Cascadia Mono', monospace; background: #f1f0ec; padding: 0 2pt; border-radius: 2pt; }
+pre { font: 8pt/1.35 Consolas, 'Cascadia Mono', monospace; background: #f6f5f1; padding: 6pt 8pt; border: 0.6px solid var(--line);
+      border-radius: 3pt; overflow: hidden; white-space: pre-wrap; text-align: left; break-inside: avoid; margin: 4pt 0 8pt; }
+ul, ol { margin: 0 0 6pt; padding-left: 16pt; } li { margin-bottom: 2.5pt; }
+.small { font-size: 8.6pt; color: var(--ink2); }
+.refs li { font-size: 8.8pt; text-align: left; }
+.pass { color: #006300; font-weight: 600; } .warn { color: #8a5a00; font-weight: 600; }
+</style></head><body>
+<h1>Optimised Dense and Sparse Matrix Multiplication in C:<br>Loop Order, Cache Blocking and CSR</h1>
+<p class="meta"><b>Abdelaziz Choukri Mohamed</b> · Big Data 2026–2027, Grado en Ciencia e Ingeniería de Datos, Universidad de Las Palmas de Gran Canaria<br>
+Individual Assignment 2 — Optimised Approaches and Sparse Matrices · 2026-10-29<br>
+Code, raw data and scripts: https://github.com/abdela758/bigdata-matmul (folder <code>assignment2/</code>)</p>
+
+
+<div class="abstract"><b>Abstract.</b> Building on the validated C kernel of Assignment 1, this study measures, on one laptop (Intel Core i5-1135G7, single thread, GCC <code>-O2</code>), how two optimisations change dense matrix multiplication and when a sparse representation pays off.
+Part A compares the baseline <i>i-j-k</i> loop with loop reordering (<i>i-k-j</i>) and cache blocking (64 × 64 tiles) for <i>n</i> = 100–3000. All three return bit-identical results. Loop reordering is 1.7–5.7× faster than the baseline and blocking 1.6–7.2×,
+with the largest gains at the largest sizes; the baseline exceeded the 120 s budget at <i>n</i> = 2500, while both optimised versions completed <i>n</i> = 3000 in 24.6 s and 17.9 s.
+Part B multiplies randomly scattered sparse matrices (0.1–50 % nonzeros, <i>n</i> = 1000 and 2000) with an own CSR implementation of Gustavson’s algorithm and compares it with dense blocked multiplication of the same matrices.
+CSR was faster at every tested density, by 46,450× at 0.1 % but only 1.2× at 50 % (<i>n</i> = 2000), because each useful product costs it 3–20 times more than a dense multiply-add and because the product becomes dense: at 5 % density, more than 90 % of the entries of C are nonzero.
+The conversion from dense to CSR is measured separately; it dominates only at the lowest densities. Conclusions are limited to these implementations, random uniform sparsity and this machine.</div>
+
+
+<h2>1. Introduction and objective</h2>
+<p>Assignment 1 measured the textbook triple loop in Python, Java and C and found that its cost per multiply-add rises with the matrix size, which suggested, without proving it, a memory-access effect [1].
+This study keeps one language, C, and asks two questions, as the brief requires:</p>
+<ol>
+<li><b>Part A.</b> <i>How do two optimisations of the dense algorithm, loop reordering and cache blocking, change the runtime of the validated Assignment 1 kernel as the matrix size grows?</i></li>
+<li><b>Part B.</b> <i>Under which tested densities does a sparse (CSR) representation make multiplication faster or smaller in memory than a dense method on the same matrices?</i></li>
+</ol>
+<p><b>Expectations</b> (from the course material and the literature [2, 3]; written after a short pilot that was used only to set sizes and limits):
+the reordered loop should help most once matrix B no longer fits in the caches, because it reads B along rows instead of columns; blocking should add little to that at moderate sizes but keep the cost per operation flatter at large sizes;
+CSR should win clearly at very low densities, where it skips almost all the work, and lose at high densities, where indexing overheads remain and the product itself becomes dense.</p>
+
+
+<h2>2. Background</h2>
+<p><b>Loop reordering.</b> For <i>C</i> = <i>AB</i> the three loops can be nested in any order without changing the result. The baseline <i>i-j-k</i> order computes one element of C at a time with an inner loop that walks a <i>column</i> of B (addresses <i>n</i> doubles apart),
+so it touches a new cache line at every step. In the <i>i-k-j</i> order the inner loop updates a whole row of C with one element of A times a row of B, so both B and C are read with unit stride [2, Sec. 6.2.1].</p>
+<p><b>Cache blocking (tiling).</b> The matrices are processed in <i>S</i> × <i>S</i> tiles so that the tile of B being used is reused for several rows of A while it is still in cache [2, Sec. 6.2.1]. Here the tiles are visited in the order <i>ii-kk-jj</i> and the <i>i-k-j</i> order is used inside a tile.
+<i>S</i> = 64 was fixed before the pilot: one 64 × 64 tile of doubles is 32 KiB, which fits in the 48 KiB level-1 data cache of the test CPU.</p>
+<p><b>Sparse matrices and CSR.</b> <i>Density</i> is the percentage of nonzero entries and <i>sparsity</i> the percentage of zeros. Compressed sparse row (CSR) stores, for each row, the column index and value of its nonzeros, plus one row-pointer array: 12 bytes per nonzero (8-byte value, 4-byte index) and 8(<i>n</i>+1) bytes,
+against 8<i>n</i>² bytes for the dense matrix [4]. CSR × CSR products are computed with Gustavson’s row-by-row algorithm [5], whose work is proportional to the number of nonzero products rather than to <i>n</i>³: with independent random nonzeros of density <i>d</i>, about <i>d</i>²<i>n</i>³ products.
+The product can be much denser than the inputs: an entry of C is nonzero if any of its <i>n</i> products is, which happens with probability 1 − (1 − <i>d</i>²)<sup><i>n</i></sup>.</p>
+
+
+<h2>3. Methodology</h2>
+<h3>3.1 Implementations</h3>
+<table>
+<caption>Table 1. The methods. All are single-threaded C, compiled together with GCC 16.2.0 and <code>-std=c11 -Wall -Wextra -O2</code>, as in Assignment 1.</caption>
+<tr><th class=''>Method</th><th class=''>Code</th><th class=''>What changes with respect to the baseline</th><th class=''>Expected effect</th></tr>
+<tr><td class=''><b>ijk</b> (baseline)</td><td class=''><code>mm_ijk</code>, <code>src/c/dense.c</code></td><td class=''>nothing: the validated Assignment 1 C kernel [1], copied unchanged</td><td class=''>–</td></tr>
+<tr><td class=''><b>ikj</b> (loop reordering)</td><td class=''><code>mm_ikj</code></td><td class=''>the two inner loops are swapped; C is accumulated in place, so it is zeroed first (inside the timed kernel)</td><td class=''>B and C read with unit stride: far fewer cache misses for large <i>n</i></td></tr>
+<tr><td class=''><b>blocked</b> (cache blocking)</td><td class=''><code>mm_blocked</code></td><td class=''><i>ikj</i> applied to 64 × 64 tiles; tiles visited <i>ii-kk-jj</i>; C zeroed inside the timed kernel</td><td class=''>a tile of B is reused from cache; flatter cost per operation at large <i>n</i></td></tr>
+<tr><td class=''><b>CSR</b> (sparse)</td><td class=''><code>spgemm</code>, <code>src/c/sparse.c</code></td><td class=''>own CSR format and Gustavson product (no library): symbolic pass to size C, then numeric pass with a dense accumulator</td><td class=''>work ∝ nonzero products; fast at low density, overheads at high density</td></tr>
+</table>
+<p>For every element C[<i>i</i>][<i>j</i>] all dense methods add the products <i>a</i><sub>ik</sub><i>b</i><sub>kj</sub> in the same order (<i>k</i> = 0, 1, …, <i>n</i>−1, starting from 0), and the CSR method adds the same products without the exact zeros, so all methods return
+<b>bit-identical</b> results. GCC enables loop vectorisation at <code>-O2</code> [6]; its report (<code>-fopt-info-vec-optimized</code>, saved in <code>build/dense-vectorisation.txt</code>) lists no vectorised loop in <code>dense.c</code>, so the dense methods differ only in their memory-access order, not in SIMD use.
+The CSR kernel stores the column indices of each row of C in first-touch order (unsorted) and its timed region includes both passes, the allocation of C and freeing the previous C; its work arrays (three arrays of length <i>n</i>) are allocated once, outside the timer.</p>
+<h3>3.2 Inputs</h3>
+<p><b>Part A</b> uses the dense inputs of Assignment 1, uniform in [0, 1), generated with the same rule (NumPy <code>default_rng([20261012, n, which])</code>); the files are byte-identical to Assignment 1’s (checked against its SHA-256 hashes). Sizes: <i>n</i> = 100, 200, 500, 1000, 1500, 2000, 2500, 3000.
+<b>Part B</b> uses new matrices for <i>n</i> = 1000, 2000 and densities 0.1 %, 1 %, 5 %, 10 %, 25 %, 50 %: every entry is nonzero independently with probability <i>d</i> (uniformly scattered positions, no structure) and nonzero values are uniform in (0, 1];
+seed <code>default_rng([20261026, n, d·10⁶, which])</code>. Each matrix is written twice with the same logical content, as a dense file with explicit zeros (read by the dense comparator) and as a CSR file (read by the sparse method); the actual nonzero counts are reported in Table 6.</p>
+<h3>3.3 Environment</h3>
+<p>HP 250 G8 Notebook PC, 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz (4 cores, 8 logical processors; L1d 48 KiB and L2 1.25 MiB per core, L3 8 MiB shared), 15.7 GB RAM, Windows 11 Pro (build 26300), AC power, “Balanced” power plan;
+the same laptop as Assignment 1. One kernel thread; no numerical library.</p>
+<h3>3.4 Correctness</h3>
+<p><code>scripts/run_tests.py</code> checks: identity and zero matrices (bit-exact); random matrices against NumPy with absolute and relative tolerance 10<sup>−9</sup> (as in Assignment 1), including sizes that are and are not multiples of the tile size (10, 63, 64, 65, 100, 130, 300) and tile sizes 32 and 64;
+that every optimised method is bit-identical to the baseline; that the C dense → CSR conversion writes byte-identical files to an independent Python writer; and that the CSR product matches NumPy, is bit-identical to the dense baseline and has exactly as many stored entries as NumPy’s product has nonzeros,
+for densities 0 % (empty), identity, 1 %, 10 %, 50 % and 100 %.</p>
+<h3>3.5 Measurement protocol</h3>
+<ul>
+<li><b>Same harness as Assignment 1.</b> Each configuration runs in its own process; the timing loop, batching, warm-up rules, statistics and memory metric are those of Assignment 1 (the launcher and memory code are copied unchanged into <code>scripts/harness.py</code>).
+A batch runs <i>m</i> multiplications (<i>m</i> doubled until a batch lasts ≥ 0.2 s); calibration and warm-up batches are discarded from the statistics; then 5–10 measured batches. The median and the interquartile range (IQR, shown as [Q1–Q3]) of all measured batches of all launches are reported.</li>
+<li><b>Timing boundary.</b> Kernel only: reading the input files and allocating the work arrays are outside the timer, for every method. For the dense optimised methods the zeroing of C is inside, for CSR the allocation of the output is inside. The dense → CSR conversion is <b>measured separately</b> (one input matrix, same protocol) and is not included in the CSR multiplication time.</li>
+<li><b>Interleaving.</b> Configurations are interleaved in time (all methods of one size, then the next size; a second sweep with the method order rotated). This matters: in pilot runs the same baseline kernel at <i>n</i> = 1000 took between 1.6 s and 3.3 s depending on the state of the laptop, and in Assignment 1 it took 1.37 s.
+Only measurements taken within this study’s sweep are compared with each other; Assignment 1 times are not mixed in.</li>
+<li><b>Memory.</b> Peak working set of the process (Windows <code>PeakWorkingSetSize</code> [7]), one value per launch; it includes the runtime and the input data.</li>
+<li><b>Budgets.</b> At most 120 s per single multiplication (otherwise the launch is stopped and reported as a timeout), 30 min per launch, 4 GiB of memory. Part A tests sizes up to 3000 for every method; Part B uses the dense blocked method as comparator.</li>
+</ul>
+
+<h2>4. Results</h2>
+<h3>4.1 Correctness</h3>
+<p>All 115 checks passed (115/115; <code>results/correctness.csv</code>). The two optimised dense methods and the CSR method returned matrices bit-identical to the baseline in every test, the C conversion produced byte-identical CSR files to the independent Python writer,
+and the number of stored entries of every CSR product equalled the number of nonzeros of NumPy’s product. The checksum printed after every timed batch was constant within each launch.</p>
+<h3>4.2 Part A: dense optimisations</h3>
+
+<p>Table 2 and Figure 1 give the time of one multiplication. Both optimisations are faster than the baseline at every size, and the gap grows with <i>n</i> (Table 3): loop reordering gives 1.7× at <i>n</i> = 100, 2.7× at 1000 and 5.7× at 2000;
+blocking gives 1.6×, 3.4× and 7.2×. Blocking is faster than reordering alone at every size from 200 on, by 1.22–1.58×.
+The baseline was the only method to exceed the budget: the largest size it completed was <i>n</i> = 2000. Its first multiplication at <i>n</i> = 2500 completed in 105 s (a calibration batch, so not counted as a measurement); the next one ran past 120 s and the launch was stopped. Reordering and blocking both completed the largest declared size, <i>n</i> = 3000, in 24.6 s and 17.9 s.</p>
+<p>Figure 2 shows why. The baseline’s time per multiply-add, <i>t</i>/<i>n</i>³, grows from 1.24 ns at <i>n</i> = 100 to 2.09 ns at 1000 and 4.40 ns at 2000, as in Assignment 1.
+For reordering it stays between 0.75 and 1.10 ns over the whole range, and for blocking between 0.59 and 0.79 ns:
+with unit-stride access the cost per operation no longer depends much on whether B fits in the caches.</p>
+<p><b>Variability.</b> At <i>n</i> ≤ 1000 the two launches of a configuration often disagreed: by up to 1.9× for the baseline and up to 1.7× for the optimised methods (Appendix A); for the baseline the slower launch was always the one that started with more background load on the laptop.
+At <i>n</i> ≥ 1500 the launches of every method agree within 13 %. The speed-ups for <i>n</i> ≤ 1000 are therefore uncertain by up to that factor; those for <i>n</i> ≥ 1500, including the largest ones, are robust.</p>
+
+<table>
+<caption>Table 2. Part A: time of one multiplication, median [Q1–Q3] over all measured batches of all launches.</caption>
+<tr><th class='num'>n</th><th class='num'>ijk (baseline)</th><th class='num'>ikj</th><th class='num'>blocked (S = 64)</th></tr>
+<tr><td class='num'>100</td><td class='num'>1.24 ms [1.02 ms–1.4 ms]</td><td class='num'>748 µs [648 µs–792 µs]</td><td class='num'>794 µs [758 µs–852 µs]</td></tr>
+<tr><td class='num'>200</td><td class='num'>11.1 ms [7.2 ms–13.8 ms]</td><td class='num'>6.43 ms [5.91 ms–7.41 ms]</td><td class='num'>4.92 ms [4.5 ms–5.65 ms]</td></tr>
+<tr><td class='num'>500</td><td class='num'>192 ms [143 ms–238 ms]</td><td class='num'>104 ms [76.4 ms–119 ms]</td><td class='num'>85.9 ms [63.4 ms–104 ms]</td></tr>
+<tr><td class='num'>1000</td><td class='num'>2.09 s [1.76 s–3.16 s]</td><td class='num'>759 ms [715 ms–852 ms]</td><td class='num'>621 ms [541 ms–634 ms]</td></tr>
+<tr><td class='num'>1500</td><td class='num'>7.18 s [6.83 s–7.61 s]</td><td class='num'>2.9 s [2.64 s–2.97 s]</td><td class='num'>2 s [1.96 s–2.16 s]</td></tr>
+<tr><td class='num'>2000</td><td class='num'>35.2 s [34.6 s–37.5 s]</td><td class='num'>6.19 s [6.08 s–6.57 s]</td><td class='num'>4.91 s [4.66 s–5.37 s]</td></tr>
+<tr><td class='num'>2500</td><td class='num'>timeout (> 120 s)</td><td class='num'>17.2 s [15.6 s–17.2 s]</td><td class='num'>10.9 s [10.9 s–11.8 s]</td></tr>
+<tr><td class='num'>3000</td><td class='num'>timeout (> 120 s)</td><td class='num'>24.6 s [24.2 s–24.8 s]</td><td class='num'>17.9 s [17.6 s–19.3 s]</td></tr>
+</table>
+<figure><img src='../results/figures/fig1_dense_time.png' style='width:100%'><figcaption>Figure 1. Part A: median time of one multiplication (log-log); bars are the IQR, × marks the baseline’s timeouts at the 120 s limit.</figcaption></figure>
+<figure><img src='../results/figures/fig2_dense_per_iteration.png' style='width:100%'><figcaption>Figure 2. Part A: median time per multiply-add, <i>t</i>/<i>n</i>³. Dotted lines mark where one matrix B outgrows the L2 and L3 caches (computed from the cache sizes).</figcaption></figure>
+<table>
+<caption>Table 3. Speed-ups (ratios of median times). Values for n ≤ 1000 are uncertain by up to the launch-to-launch factor of the baseline (Appendix A).</caption>
+<tr><th class='num'>n</th><th class='num'>ijk ÷ ikj</th><th class='num'>ijk ÷ blocked</th><th class='num'>ikj ÷ blocked</th></tr>
+<tr><td class='num'>100</td><td class='num'>1.66×</td><td class='num'>1.56×</td><td class='num'>0.94×</td></tr>
+<tr><td class='num'>200</td><td class='num'>1.73×</td><td class='num'>2.26×</td><td class='num'>1.31×</td></tr>
+<tr><td class='num'>500</td><td class='num'>1.84×</td><td class='num'>2.24×</td><td class='num'>1.22×</td></tr>
+<tr><td class='num'>1000</td><td class='num'>2.75×</td><td class='num'>3.36×</td><td class='num'>1.22×</td></tr>
+<tr><td class='num'>1500</td><td class='num'>2.48×</td><td class='num'>3.60×</td><td class='num'>1.45×</td></tr>
+<tr><td class='num'>2000</td><td class='num'>5.70×</td><td class='num'>7.18×</td><td class='num'>1.26×</td></tr>
+<tr><td class='num'>2500</td><td class='num'>–</td><td class='num'>–</td><td class='num'>1.58×</td></tr>
+<tr><td class='num'>3000</td><td class='num'>–</td><td class='num'>–</td><td class='num'>1.37×</td></tr>
+</table>
+<h3>4.3 Part A: tile size</h3>
+
+<p>The tile size S = 64 was fixed before measuring. Table 4 shows how the blocked method responds to other tile sizes (one launch each, run after the main comparison). S = 256 was fastest at both sizes,
+about 25–38 % faster than S = 64, and S = 64 was the slowest of the five in this run.
+However, the same S = 64 configuration measured in the main comparison took 621 ms at <i>n</i> = 1000 and 4.91 s at <i>n</i> = 2000, against 784 ms and 5.74 s here, a run-to-run difference of the same size as the differences between tile sizes.
+The data therefore suggest that larger tiles may be slightly better on this machine, but they do not establish a best tile size; a properly repeated tuning experiment would be needed.</p>
+
+<table>
+<caption>Table 4. Block-size sensitivity: median time of the blocked method (time per multiply-add in brackets); one launch, 5 measured batches each.</caption>
+<tr><th class='num'>Tile size S</th><th class='num'>n = 1000</th><th class='num'>n = 2000</th></tr>
+<tr><td class='num'>16</td><td class='num'>575 ms (0.57 ns)</td><td class='num'>5.01 s (0.63 ns)</td></tr>
+<tr><td class='num'>32</td><td class='num'>577 ms (0.58 ns)</td><td class='num'>4.67 s (0.58 ns)</td></tr>
+<tr><td class='num'>64</td><td class='num'>784 ms (0.78 ns)</td><td class='num'>5.74 s (0.72 ns)</td></tr>
+<tr><td class='num'>128</td><td class='num'>603 ms (0.60 ns)</td><td class='num'>4.9 s (0.61 ns)</td></tr>
+<tr><td class='num'>256</td><td class='num'>486 ms (0.49 ns)</td><td class='num'>4.31 s (0.54 ns)</td></tr>
+</table>
+<h3>4.4 Part B: sparse versus dense</h3>
+
+<p>Table 5 and Figure 3 compare, for the same logical matrices, the CSR multiplication with the dense blocked method. The dense time does not depend on the density (514 ms–573 ms at <i>n</i> = 1000, 4.62 s–4.89 s at 2000),
+because it performs all <i>n</i>³ multiply-adds whatever their values. The CSR time grows with the number of nonzero products and was lower than the dense time at every tested density, but the advantage falls from 60,037× and 46,450× at 0.1 %
+to 4.8× and 4.7× at 25 % and to 1.29× and 1.23× at 50 % (<i>n</i> = 1000 and 2000). Densities above 50 % were not tested, so no crossover point was measured.</p>
+<p><b>Cost per useful operation.</b> Table 5 also gives the CSR time per nonzero product: 1.7–13.1 ns, against 0.51–0.61 ns per multiply-add for the dense method.
+Each useful product is 3–20 times more expensive in CSR, because of the indirect index accesses, the scattered updates of the accumulator, the symbolic pass and writing the output. CSR wins because it performs far fewer operations, not because each is cheaper: at 50 % density it performs about 25 % of the dense work at roughly three times the cost per operation.
+The cost per product is highest at the lowest densities, where per-row overheads (resetting markers, empty rows) are no longer amortised.</p>
+<p><b>Output fill-in.</b> The product is much denser than the inputs (Table 6). With 1 % nonzeros in A and B, C has 9.5 % nonzeros at <i>n</i> = 1000 and 18.4 % at 2000; at 5 % input density it has 92.0 % and 99.3 %, and from 10 % on C is effectively full (100.00 % at <i>n</i> = 2000).
+This matches the estimate 1 − (1 − <i>d</i>²)<sup><i>n</i></sup> of Section 2, and it means that for these random matrices the same density of zeros gives a denser result, and less advantage, the larger <i>n</i> is.</p>
+<p><b>Conversion cost.</b> Converting one input from dense to CSR took 1.58 ms–7.72 ms at <i>n</i> = 1000 and 7.07 ms–29.6 ms at 2000, because it has to read all <i>n</i>² entries.
+At 0.1 % density this is about 166× (<i>n</i> = 1000) and 67× (<i>n</i> = 2000) the multiplication itself, at 1 % between 0.9× and 2.5× of it, and from 5 % on less than 10 % of it.
+Only matrix A was converted in the measurements; converting both inputs would take about twice as long (B has the same size and nearly the same nonzero count), and even with that cost CSR stays faster than dense at every tested density (Table 5, last column).</p>
+<p><b>Memory.</b> Table 6 gives the peak working set. At low density the CSR process needs a fraction of the dense one (for example 16.5 vs 27.7 MiB at <i>n</i> = 1000 and 5 %, and 14.2 vs 96.3 MiB at <i>n</i> = 2000 and 1 %).
+The saving shrinks as the density grows, mostly because of the output: once C is full, its CSR form takes 12 bytes per entry against 8 in dense form. At 50 % density the two processes need the same memory (96.4 vs 96.3 MiB at <i>n</i> = 2000).</p>
+
+<table>
+<caption>Table 5. Part B: median times on the same logical matrices. “Convert A” is measured; the conversion of both inputs is estimated as twice it.</caption>
+<tr><th class='num'>n</th><th class='num'>Density</th><th class='num'>Dense blocked</th><th class='num'>CSR</th><th class='num'>Dense ÷ CSR</th><th class='num'>CSR ns per nonzero product</th><th class='num'>Convert A</th><th class='num'>CSR + convert A and B (est.)</th><th class='num'>Dense ÷ (CSR + conv.)</th></tr>
+<tr><td class='num'>1000</td><td class='num'>0.1 %</td><td class='num'>572 ms</td><td class='num'>9.53 µs</td><td class='num'>60,037.0×</td><td class='num'>9.4</td><td class='num'>1.58 ms</td><td class='num'>3.17 ms</td><td class='num'>180.5×</td></tr>
+<tr><td class='num'>1000</td><td class='num'>1 %</td><td class='num'>550 ms</td><td class='num'>681 µs</td><td class='num'>807.1×</td><td class='num'>6.8</td><td class='num'>1.7 ms</td><td class='num'>4.08 ms</td><td class='num'>134.6×</td></tr>
+<tr><td class='num'>1000</td><td class='num'>5 %</td><td class='num'>514 ms</td><td class='num'>23.3 ms</td><td class='num'>22.0×</td><td class='num'>9.2</td><td class='num'>2.38 ms</td><td class='num'>28.1 ms</td><td class='num'>18.3×</td></tr>
+<tr><td class='num'>1000</td><td class='num'>10 %</td><td class='num'>531 ms</td><td class='num'>38.2 ms</td><td class='num'>13.9×</td><td class='num'>3.8</td><td class='num'>3.14 ms</td><td class='num'>44.5 ms</td><td class='num'>11.9×</td></tr>
+<tr><td class='num'>1000</td><td class='num'>25 %</td><td class='num'>573 ms</td><td class='num'>118 ms</td><td class='num'>4.8×</td><td class='num'>1.9</td><td class='num'>5.85 ms</td><td class='num'>130 ms</td><td class='num'>4.4×</td></tr>
+<tr><td class='num'>1000</td><td class='num'>50 %</td><td class='num'>562 ms</td><td class='num'>436 ms</td><td class='num'>1.3×</td><td class='num'>1.7</td><td class='num'>7.72 ms</td><td class='num'>452 ms</td><td class='num'>1.2×</td></tr>
+<tr><td class='num'>2000</td><td class='num'>0.1 %</td><td class='num'>4.89 s</td><td class='num'>105 µs</td><td class='num'>46,450.2×</td><td class='num'>13.1</td><td class='num'>7.07 ms</td><td class='num'>14.2 ms</td><td class='num'>343.3×</td></tr>
+<tr><td class='num'>2000</td><td class='num'>1 %</td><td class='num'>4.75 s</td><td class='num'>7.54 ms</td><td class='num'>630.4×</td><td class='num'>9.3</td><td class='num'>7.07 ms</td><td class='num'>21.7 ms</td><td class='num'>219.3×</td></tr>
+<tr><td class='num'>2000</td><td class='num'>5 %</td><td class='num'>4.82 s</td><td class='num'>116 ms</td><td class='num'>41.5×</td><td class='num'>5.8</td><td class='num'>11.5 ms</td><td class='num'>139 ms</td><td class='num'>34.7×</td></tr>
+<tr><td class='num'>2000</td><td class='num'>10 %</td><td class='num'>4.81 s</td><td class='num'>251 ms</td><td class='num'>19.2×</td><td class='num'>3.1</td><td class='num'>14 ms</td><td class='num'>278 ms</td><td class='num'>17.3×</td></tr>
+<tr><td class='num'>2000</td><td class='num'>25 %</td><td class='num'>4.84 s</td><td class='num'>1.04 s</td><td class='num'>4.7×</td><td class='num'>2.1</td><td class='num'>19.8 ms</td><td class='num'>1.08 s</td><td class='num'>4.5×</td></tr>
+<tr><td class='num'>2000</td><td class='num'>50 %</td><td class='num'>4.62 s</td><td class='num'>3.75 s</td><td class='num'>1.2×</td><td class='num'>1.9</td><td class='num'>29.6 ms</td><td class='num'>3.81 s</td><td class='num'>1.2×</td></tr>
+</table>
+<figure><img src='../results/figures/fig3_sparse_time.png' style='width:100%'><figcaption>Figure 3. Part B: median times against the density of the inputs, for the same logical matrices (log scales). The dense time is flat because it always performs <i>n</i>³ operations.</figcaption></figure>
+<table>
+<caption>Table 6. Nonzero counts of inputs and output, and peak working set of the CSR and dense processes (median over launches).</caption>
+<tr><th class='num'>n</th><th class='num'>Density</th><th class='num'>nnz(A)</th><th class='num'>nnz(B)</th><th class='num'>nnz(C)</th><th class='num'>Density of C</th><th class='num'>Peak memory CSR (MiB)</th><th class='num'>Peak memory dense (MiB)</th></tr>
+<tr><td class='num'>1000</td><td class='num'>0.1 %</td><td class='num'>1,005</td><td class='num'>991</td><td class='num'>1,016</td><td class='num'>0.1 %</td><td class='num'>5.0</td><td class='num'>27.7</td></tr>
+<tr><td class='num'>1000</td><td class='num'>1 %</td><td class='num'>9,933</td><td class='num'>10,107</td><td class='num'>95,338</td><td class='num'>9.5 %</td><td class='num'>6.6</td><td class='num'>27.7</td></tr>
+<tr><td class='num'>1000</td><td class='num'>5 %</td><td class='num'>50,440</td><td class='num'>50,075</td><td class='num'>920,215</td><td class='num'>92.0 %</td><td class='num'>16.5</td><td class='num'>27.7</td></tr>
+<tr><td class='num'>1000</td><td class='num'>10 %</td><td class='num'>100,204</td><td class='num'>99,916</td><td class='num'>999,952</td><td class='num'>100.0 %</td><td class='num'>18.6</td><td class='num'>27.7</td></tr>
+<tr><td class='num'>1000</td><td class='num'>25 %</td><td class='num'>250,692</td><td class='num'>250,899</td><td class='num'>1,000,000</td><td class='num'>100.0 %</td><td class='num'>22.0</td><td class='num'>27.7</td></tr>
+<tr><td class='num'>1000</td><td class='num'>50 %</td><td class='num'>499,459</td><td class='num'>499,289</td><td class='num'>1,000,000</td><td class='num'>100.0 %</td><td class='num'>27.7</td><td class='num'>27.7</td></tr>
+<tr><td class='num'>2000</td><td class='num'>0.1 %</td><td class='num'>3,958</td><td class='num'>4,065</td><td class='num'>8,033</td><td class='num'>0.2 %</td><td class='num'>5.2</td><td class='num'>96.3</td></tr>
+<tr><td class='num'>2000</td><td class='num'>1 %</td><td class='num'>40,391</td><td class='num'>40,260</td><td class='num'>736,231</td><td class='num'>18.4 %</td><td class='num'>14.2</td><td class='num'>96.3</td></tr>
+<tr><td class='num'>2000</td><td class='num'>5 %</td><td class='num'>200,279</td><td class='num'>200,063</td><td class='num'>3,973,230</td><td class='num'>99.3 %</td><td class='num'>54.9</td><td class='num'>96.3</td></tr>
+<tr><td class='num'>2000</td><td class='num'>10 %</td><td class='num'>399,864</td><td class='num'>400,658</td><td class='num'>4,000,000</td><td class='num'>100.0 %</td><td class='num'>59.8</td><td class='num'>96.3</td></tr>
+<tr><td class='num'>2000</td><td class='num'>25 %</td><td class='num'>1,000,870</td><td class='num'>998,970</td><td class='num'>4,000,000</td><td class='num'>100.0 %</td><td class='num'>73.5</td><td class='num'>96.3</td></tr>
+<tr><td class='num'>2000</td><td class='num'>50 %</td><td class='num'>1,999,270</td><td class='num'>2,000,430</td><td class='num'>4,000,000</td><td class='num'>100.0 %</td><td class='num'>96.4</td><td class='num'>96.3</td></tr>
+</table>
+<h2>5. Discussion</h2>
+
+<p><b>Part A.</b> Both optimisations target the same weakness of the baseline: its inner loop reads B with a stride of <i>n</i> doubles, so for large matrices almost every access misses the caches [2]. Reordering the loops removes the stride and gives most of the gain (5.7× at <i>n</i> = 2000);
+blocking adds a further 1.22–1.58× at <i>n</i> ≥ 1000 by reusing tiles of B from the cache. Since GCC vectorised none of the dense loops and all methods perform the same additions in the same order, the measured differences come from the memory-access pattern.
+This also supports the hypothesis left open in Assignment 1 [1], that the rise of <i>t</i>/<i>n</i>³ there was a memory effect, although no hardware counters were used here either, so cache misses were not measured directly.</p>
+<p><b>Part B.</b> Whether CSR helps depends on how much work it avoids, not on the percentage of zeros by itself. For these uniformly random matrices the work is about <i>d</i>²<i>n</i>³ products, so halving the density divides it by four; but each product costs several times more than a dense operation, and the output fills in quickly, which costs time and memory.
+Other structures with the same density (for example banded or block-diagonal matrices, whose products stay sparse) would behave differently; only uniform random positions were tested. The conversion from dense storage matters only when the multiplication itself is very cheap, i.e. at the lowest densities.</p>
+<p><b>Separating the two effects.</b> The dense comparator in Part B is the best dense method of Part A, so the Part B speed-ups measure the benefit of the sparse representation over an already optimised dense code, not over the baseline; against the baseline they would be larger by the Part A factor.</p>
+
+<h2>6. Limitations</h2>
+
+<ul>
+<li><b>One machine, noisy state.</b> The same laptop as Assignment 1; background load was higher during this session (median 29 % of all logical processors before a launch) and the baseline’s small-size measurements were affected (Section 4.2). Times are not comparable with Assignment 1’s.</li>
+<li><b>Few launches at large sizes.</b> Two launches up to <i>n</i> = 2000, one at 2500 and 3000; the block-size sensitivity and the dense comparator at <i>n</i> = 2000 have one launch.</li>
+<li><b>Choices not tuned.</b> One tile size (S = 64, chosen in advance and not the best in the sensitivity run), <code>-O2</code> only, no SIMD; the sparse matrices have uniform random structure only, and densities above 50 % were not tested.</li>
+<li><b>Conversion measured for one input only;</b> the cost for both inputs is estimated as twice that.</li>
+<li><b>No hardware counters,</b> so cache behaviour is inferred from timings, not observed.</li>
+</ul>
+
+<h2>7. Conclusions</h2>
+
+<ul>
+<li>Loop reordering and cache blocking made the dense C kernel 1.7–5.7× and 1.6–7.2× faster, with the largest gains at the largest sizes, and extended the feasible size under the 120 s budget from <i>n</i> = 2000 to at least 3000. Their cost per operation stays nearly constant with <i>n</i>, unlike the baseline’s.</li>
+<li>For uniformly random sparse matrices, own-code CSR multiplication was faster than optimised dense multiplication at every tested density (0.1–50 %), but the advantage fell from four orders of magnitude to about 1.2–1.3× at 50 %, because each useful product costs more and the result fills in.</li>
+<li>CSR saves memory at low density; at 50 % it needs as much as the dense code, mostly because the full output costs 12 bytes per entry. Dense-to-CSR conversion only matters at the lowest densities.</li>
+<li><b>Open:</b> the best tile size, the crossover density above 50 %, and behaviour for structured sparsity patterns.</li>
+</ul>
+
+
+<h2>8. Use of generative AI</h2>
+<p>In line with the course policy, the use of AI is disclosed here. <b>Tool:</b> Claude Code (Anthropic), used interactively from the author’s editor. <b>What the AI did:</b> proposed the choice of optimisations and the sparse format; wrote the C programs, the driver, and the test, analysis and report scripts;
+drafted this report; checked that cited web sources exist. <b>What the author did:</b> supplied the assignment brief; chose C as the language and approved the plan; had the code run on their own laptop; published the materials in their repository.
+The author is responsible for understanding the code, the measurements and the conclusions.</p>
+
+<h2>References and materials</h2><ol class='refs'><li>A. Choukri Mohamed, “Basic Matrix Multiplication in Python, Java and C,” Big Data Individual Assignment 1, ULPGC, Oct. 2026. Code and data: https://github.com/abdela758/bigdata-matmul (folder <code>assignment1/</code>).</li><li>U. Drepper, “What every programmer should know about memory,” Red Hat, Inc., Nov. 21, 2007. [Online]. Available: https://akkadia.org/drepper/cpumemory.pdf (Sec. 6.2.1, cache access in matrix multiplication).</li><li>Universidad de Las Palmas de Gran Canaria, Big Data course 2026–2027, <i>Individual Assignments: Matrix Multiplication</i> (course material, campus virtual).</li><li>Y. Saad, <i>Iterative Methods for Sparse Linear Systems</i>, 2nd ed. Philadelphia, PA, USA: SIAM, 2003 (ch. 3, sparse matrices and their storage formats, including CSR).</li><li>F. G. Gustavson, “Two fast algorithms for sparse matrices: multiplication and permuted transposition,” <i>ACM Trans. Math. Softw.</i>, vol. 4, no. 3, pp. 250–269, 1978.</li><li>Free Software Foundation, “Options That Control Optimization,” <i>GCC manual</i>. [Online]. Available: https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html (accessed Oct. 29, 2026).</li><li>Microsoft, “PROCESS_MEMORY_COUNTERS_EX structure (psapi.h),” Win32 apps documentation. [Online]. Available: https://learn.microsoft.com/en-us/windows/win32/api/psapi/ns-psapi-process_memory_counters_ex (accessed Oct. 29, 2026).</li></ol>
+
+<p><b>Materials.</b> In the repository (https://github.com/abdela758/bigdata-matmul, folder <code>assignment2/</code>) and in <code>Assignment02_Choukri_Mohamed_Materials.zip</code>: source code (<code>src/c/</code>), declared protocol (<code>config/experiment.json</code>), build, input-generation, test, benchmark and analysis scripts (<code>scripts/</code>),
+raw measurements (<code>results/raw_samples.csv</code>, <code>results/launches.csv</code>), tables, figures, environment record and correctness results. The inputs (about 0.9 GB) are not stored; <code>scripts/generate_inputs.py</code> regenerates them and checks them against the SHA-256 hashes and nonzero counts in <code>inputs/checksums.json</code>.
+Reused from Assignment 1: the baseline kernel (copied into <code>mm_ijk</code>), the dense inputs (same generator and seed, byte-identical) and the launcher and memory measurement (<code>scripts/harness.py</code>).</p>
+
+<h2>Appendix A. Part A, all configurations</h2>
+<table>
+<caption>Table A1. Part A, every configuration (all measured batches pooled).</caption>
+<tr><th class=''>Method</th><th class='num'>n</th><th class='num'>Launches</th><th class='num'>Samples</th><th class='num'>Median</th><th class='num'>Q1</th><th class='num'>Q3</th><th class='num'>IQR/med (%)</th><th class='num'>Slowest ÷ fastest launch</th></tr>
+<tr><td class=''>ijk (baseline)</td><td class='num'>100</td><td class='num'>2</td><td class='num'>20</td><td class='num'>1.24 ms</td><td class='num'>1.02 ms</td><td class='num'>1.4 ms</td><td class='num'>30.3</td><td class='num'>1.23</td></tr>
+<tr><td class=''>ijk (baseline)</td><td class='num'>200</td><td class='num'>2</td><td class='num'>20</td><td class='num'>11.1 ms</td><td class='num'>7.2 ms</td><td class='num'>13.8 ms</td><td class='num'>59.0</td><td class='num'>1.94</td></tr>
+<tr><td class=''>ijk (baseline)</td><td class='num'>500</td><td class='num'>2</td><td class='num'>20</td><td class='num'>192 ms</td><td class='num'>143 ms</td><td class='num'>238 ms</td><td class='num'>49.1</td><td class='num'>1.67</td></tr>
+<tr><td class=''>ijk (baseline)</td><td class='num'>1000</td><td class='num'>2</td><td class='num'>14</td><td class='num'>2.09 s</td><td class='num'>1.76 s</td><td class='num'>3.16 s</td><td class='num'>67.0</td><td class='num'>1.85</td></tr>
+<tr><td class=''>ijk (baseline)</td><td class='num'>1500</td><td class='num'>2</td><td class='num'>10</td><td class='num'>7.18 s</td><td class='num'>6.83 s</td><td class='num'>7.61 s</td><td class='num'>10.9</td><td class='num'>1.13</td></tr>
+<tr><td class=''>ijk (baseline)</td><td class='num'>2000</td><td class='num'>2</td><td class='num'>10</td><td class='num'>35.2 s</td><td class='num'>34.6 s</td><td class='num'>37.5 s</td><td class='num'>8.3</td><td class='num'>1.03</td></tr>
+<tr><td class=''>ikj</td><td class='num'>100</td><td class='num'>2</td><td class='num'>20</td><td class='num'>748 µs</td><td class='num'>648 µs</td><td class='num'>792 µs</td><td class='num'>19.2</td><td class='num'>1.20</td></tr>
+<tr><td class=''>ikj</td><td class='num'>200</td><td class='num'>2</td><td class='num'>20</td><td class='num'>6.43 ms</td><td class='num'>5.91 ms</td><td class='num'>7.41 ms</td><td class='num'>23.4</td><td class='num'>1.19</td></tr>
+<tr><td class=''>ikj</td><td class='num'>500</td><td class='num'>2</td><td class='num'>20</td><td class='num'>104 ms</td><td class='num'>76.4 ms</td><td class='num'>119 ms</td><td class='num'>40.5</td><td class='num'>1.59</td></tr>
+<tr><td class=''>ikj</td><td class='num'>1000</td><td class='num'>2</td><td class='num'>14</td><td class='num'>759 ms</td><td class='num'>715 ms</td><td class='num'>852 ms</td><td class='num'>18.0</td><td class='num'>1.22</td></tr>
+<tr><td class=''>ikj</td><td class='num'>1500</td><td class='num'>2</td><td class='num'>10</td><td class='num'>2.9 s</td><td class='num'>2.64 s</td><td class='num'>2.97 s</td><td class='num'>11.2</td><td class='num'>1.12</td></tr>
+<tr><td class=''>ikj</td><td class='num'>2000</td><td class='num'>2</td><td class='num'>10</td><td class='num'>6.19 s</td><td class='num'>6.08 s</td><td class='num'>6.57 s</td><td class='num'>7.9</td><td class='num'>1.04</td></tr>
+<tr><td class=''>ikj</td><td class='num'>2500</td><td class='num'>1</td><td class='num'>5</td><td class='num'>17.2 s</td><td class='num'>15.6 s</td><td class='num'>17.2 s</td><td class='num'>9.6</td><td class='num'>1.00</td></tr>
+<tr><td class=''>ikj</td><td class='num'>3000</td><td class='num'>1</td><td class='num'>5</td><td class='num'>24.6 s</td><td class='num'>24.2 s</td><td class='num'>24.8 s</td><td class='num'>2.3</td><td class='num'>1.00</td></tr>
+<tr><td class=''>blocked (S = 64)</td><td class='num'>100</td><td class='num'>2</td><td class='num'>20</td><td class='num'>794 µs</td><td class='num'>758 µs</td><td class='num'>852 µs</td><td class='num'>11.8</td><td class='num'>1.06</td></tr>
+<tr><td class=''>blocked (S = 64)</td><td class='num'>200</td><td class='num'>2</td><td class='num'>20</td><td class='num'>4.92 ms</td><td class='num'>4.5 ms</td><td class='num'>5.65 ms</td><td class='num'>23.3</td><td class='num'>1.20</td></tr>
+<tr><td class=''>blocked (S = 64)</td><td class='num'>500</td><td class='num'>2</td><td class='num'>20</td><td class='num'>85.9 ms</td><td class='num'>63.4 ms</td><td class='num'>104 ms</td><td class='num'>47.4</td><td class='num'>1.66</td></tr>
+<tr><td class=''>blocked (S = 64)</td><td class='num'>1000</td><td class='num'>2</td><td class='num'>14</td><td class='num'>621 ms</td><td class='num'>541 ms</td><td class='num'>634 ms</td><td class='num'>15.0</td><td class='num'>1.17</td></tr>
+<tr><td class=''>blocked (S = 64)</td><td class='num'>1500</td><td class='num'>2</td><td class='num'>10</td><td class='num'>2 s</td><td class='num'>1.96 s</td><td class='num'>2.16 s</td><td class='num'>10.0</td><td class='num'>1.04</td></tr>
+<tr><td class=''>blocked (S = 64)</td><td class='num'>2000</td><td class='num'>2</td><td class='num'>10</td><td class='num'>4.91 s</td><td class='num'>4.66 s</td><td class='num'>5.37 s</td><td class='num'>14.4</td><td class='num'>1.06</td></tr>
+<tr><td class=''>blocked (S = 64)</td><td class='num'>2500</td><td class='num'>1</td><td class='num'>5</td><td class='num'>10.9 s</td><td class='num'>10.9 s</td><td class='num'>11.8 s</td><td class='num'>8.6</td><td class='num'>1.00</td></tr>
+<tr><td class=''>blocked (S = 64)</td><td class='num'>3000</td><td class='num'>1</td><td class='num'>5</td><td class='num'>17.9 s</td><td class='num'>17.6 s</td><td class='num'>19.3 s</td><td class='num'>9.3</td><td class='num'>1.00</td></tr>
+</table></body></html>

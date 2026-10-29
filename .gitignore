@@ -7,3 +7,9 @@ __pycache__/
 
 # local tooling
 .venv/
+
+# Assignment 2 (same rules)
+assignment2/build/
+assignment2/inputs/*.bin
+assignment2/inputs/*.csr
+assignment2/dist/

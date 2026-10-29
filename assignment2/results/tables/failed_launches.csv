@@ -1,0 +1,3 @@
+launch_id,experiment,method,n,density,status,wall_seconds,measured_samples
+19,dense,ijk,2500,1,timeout_multiplication,226.309,0
+22,dense,ijk,3000,1,timeout_multiplication,120.963,0

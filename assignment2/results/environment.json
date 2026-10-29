@@ -1,0 +1,29 @@
+{
+  "collected_utc": "2026-10-29T10:28:07+00:00",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "cpu": {
+    "Name": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+    "NumberOfCores": 4,
+    "NumberOfLogicalProcessors": 8,
+    "MaxClockSpeed": 2419,
+    "L2CacheSize": 5120,
+    "L3CacheSize": 8192
+  },
+  "memory_gb": 15.7,
+  "computer_model": "HP 250 G8 Notebook PC",
+  "os": {
+    "Caption": "Microsoft Windows 11 Pro",
+    "Version": "10.0.26300",
+    "BuildNumber": "26300"
+  },
+  "battery_status_2_means_AC": {
+    "BatteryStatus": 2,
+    "EstimatedChargeRemaining": 87
+  },
+  "power_plan": "Equilibrado",
+  "build": {
+    "c_compiler": "C:\\Users\\TecdataEngineering\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\gcc.exe",
+    "c_compiler_version": "gcc.exe (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r2) 16.2.0",
+    "c_flags": "-std=c11 -Wall -Wextra -O2"
+  }
+}
