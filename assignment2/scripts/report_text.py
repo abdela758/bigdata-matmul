@@ -161,7 +161,7 @@ def conclusions(c):
 
 def materials(repo_url):
     return f"""
-<p><b>Materials.</b> In the repository ({repo_url}, folder <code>assignment2/</code>) and in <code>Assignment02_Choukri_Mohamed_Materials.zip</code>: source code (<code>src/c/</code>), declared protocol (<code>config/experiment.json</code>), build, input-generation, test, benchmark and analysis scripts (<code>scripts/</code>),
+<p><b>Materials.</b> In the repository ({repo_url}, folder <code>assignment2/</code>): source code (<code>src/c/</code>), declared protocol (<code>config/experiment.json</code>), build, input-generation, test, benchmark and analysis scripts (<code>scripts/</code>),
 raw measurements (<code>results/raw_samples.csv</code>, <code>results/launches.csv</code>), tables, figures, environment record and correctness results. The inputs (about 0.9 GB) are not stored; <code>scripts/generate_inputs.py</code> regenerates them and checks them against the SHA-256 hashes and nonzero counts in <code>inputs/checksums.json</code>.
 Reused from Assignment 1: the baseline kernel (copied into <code>mm_ijk</code>), the dense inputs (same generator and seed, byte-identical) and the launcher and memory measurement (<code>scripts/harness.py</code>).</p>
 """
