@@ -235,7 +235,7 @@ def conclusions(ctx):
 
 def materials(ctx, repo_url):
     return f"""
-<p><b>Materials.</b> Everything is in the repository, {repo_url}, and in <code>Assignment01_Choukri_Mohamed_Materials.zip</code>: source code (<code>src/</code>), the declared protocol (<code>config/experiment.json</code>), the build, test, benchmark and analysis scripts (<code>scripts/</code>),
+<p><b>Materials.</b> Everything is in the repository, {repo_url}: source code (<code>src/</code>), the declared protocol (<code>config/experiment.json</code>), the build, test, benchmark and analysis scripts (<code>scripts/</code>),
 raw measurements (<code>results/raw_samples.csv</code>: one row per timed batch including warm-up; <code>results/launches.csv</code>: one row per process with status and peak memory), the tables and figures, the environment record and the correctness results.
 The shared inputs are not stored (up to 144 MB) but are regenerated bit-for-bit by <code>scripts/generate_inputs.py</code> and verified against SHA-256 hashes. The <code>README.md</code> lists the exact build and run commands and the tool versions.</p>
 """
